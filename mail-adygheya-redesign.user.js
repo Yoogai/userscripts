@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.16
+// @version      3.1.17
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.16] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.17] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1208,6 +1208,11 @@
       html.ady-redesign.ady-focus #rl-sub-left,
       html.ady-redesign.ady-focus #ady-folder-resizer,
       html.ady-redesign.ady-focus #ady-list-resizer { display: none !important; }
+      html.ady-redesign:has(#rl-sub-right .messageView.message-focused) #ady-folder-resizer,
+      html.ady-redesign:has(#rl-sub-right .messageView.message-focused) #ady-list-resizer {
+        display: none !important;
+        pointer-events: none !important;
+      }
       html.ady-redesign.ady-focus #rl-right,
       html.ady-redesign.ady-focus #rl-sub-right { left: 0 !important; }
 
@@ -1292,11 +1297,18 @@
     setImportant(subRight, 'left', state.focus ? '0px' : `${state.listWidth}px`);
     setImportant(subRight, 'right', '0px');
 
+    const messageFullscreen = Boolean(document.querySelector('#rl-sub-right .messageView.message-focused'));
+    const hideResizers = state.focus || messageFullscreen;
     if (folderHandle) {
       folderHandle.style.left = `${effectiveFolderWidth}px`;
-      folderHandle.style.display = state.collapsed ? 'none' : 'block';
+      folderHandle.style.display = (state.collapsed || hideResizers) ? 'none' : 'block';
+      folderHandle.style.pointerEvents = hideResizers ? 'none' : '';
     }
-    if (listHandle) listHandle.style.left = `${state.listWidth}px`;
+    if (listHandle) {
+      listHandle.style.left = `${state.listWidth}px`;
+      listHandle.style.display = hideResizers ? 'none' : 'block';
+      listHandle.style.pointerEvents = hideResizers ? 'none' : '';
+    }
 
     if (persist) {
       GM_setValue(KEYS.folderWidth, state.folderWidth);
@@ -1444,8 +1456,14 @@
       if (!button.dataset.adyRepositionBound) {
         button.dataset.adyRepositionBound = 'true';
         button.addEventListener('click', () => {
-          requestAnimationFrame(positionMessageButtons);
-          window.setTimeout(positionMessageButtons, 80);
+          requestAnimationFrame(() => {
+            positionMessageButtons();
+            applyLayout();
+          });
+          window.setTimeout(() => {
+            positionMessageButtons();
+            applyLayout();
+          }, 80);
         });
       }
     }
