@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.10
+// @version      3.1.11
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.10] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.11] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -628,17 +628,20 @@
       }
       html.ady-redesign #rl-right > div.rl-view-model.RL-SystemDropDown > .b-system-drop-down > .btn-toolbar {
         position: absolute !important;
+        z-index: 103 !important;
         top: 0 !important;
         right: 0 !important;
         left: 0 !important;
         width: auto !important;
         margin: 0 !important;
+        pointer-events: auto !important;
       }
       html.ady-redesign #rl-right .accountPlace {
         background: var(--ady-paper-strong) !important;
         text-shadow: none !important;
         cursor: copy !important;
         user-select: none !important;
+        pointer-events: auto !important;
         transition: border-color 160ms ease, background 160ms ease, color 160ms ease !important;
       }
       html.ady-redesign #rl-right .accountPlace::before,
@@ -680,6 +683,7 @@
       html.ady-redesign #rl-right .btn-group-last { order: 2 !important; }
       html.ady-redesign #rl-right .system-dropdown {
         display: inline-flex !important;
+        pointer-events: auto !important;
         align-items: center !important;
         justify-content: center !important;
         gap: 7px !important;
@@ -1714,6 +1718,20 @@
     accountPlace.setAttribute('tabindex', '0');
     accountPlace.setAttribute('aria-label', email ? `Скопировать адрес ${email}` : 'Скопировать адрес электронной почты');
     accountPlace.title = 'Нажмите, чтобы скопировать адрес';
+    if (!accountPlace.dataset.adyCopyBound) {
+      accountPlace.dataset.adyCopyBound = 'true';
+      accountPlace.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        copyAccountEmail(accountPlace);
+      });
+      accountPlace.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
+        copyAccountEmail(accountPlace);
+      });
+    }
   }
 
   function showCopyToast(message) {
@@ -1763,19 +1781,6 @@
       showCopyToast('Не удалось скопировать адрес');
     }
   }
-
-  document.addEventListener('click', (event) => {
-    const accountPlace = event.target.closest?.('#rl-right .accountPlace');
-    if (!accountPlace || !state.enabled) return;
-    copyAccountEmail(accountPlace);
-  });
-
-  document.addEventListener('keydown', (event) => {
-    const accountPlace = event.target.closest?.('#rl-right .accountPlace');
-    if (!accountPlace || !state.enabled || (event.key !== 'Enter' && event.key !== ' ')) return;
-    event.preventDefault();
-    copyAccountEmail(accountPlace);
-  });
 
   function normalizeComposeButton() {
     const label = document.querySelector('#rl-left .buttonComposeText .i18n, #rl-left .buttonComposeText');
