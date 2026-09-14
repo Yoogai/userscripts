@@ -127,3 +127,5 @@ jobs:
           git add -A
           git commit -m "Restore mail toolbar click handling"
           git push origin HEAD:main
+
+# trigger after workflow registration
