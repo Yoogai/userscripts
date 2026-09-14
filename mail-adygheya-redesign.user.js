@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.14
+// @version      3.1.15
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.14] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.15] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -894,9 +894,9 @@
       html.ady-redesign #rl-sub-left .messageListItem {
         height: 76px !important;
         border: 0 !important;
-        background: var(--ady-paper) !important;
+        background: transparent !important;
         color: var(--ady-ink) !important;
-        transition: background 180ms ease, transform 120ms ease !important;
+        transition: transform 120ms ease !important;
         width: calc(100% - 10px) !important;
         margin-right: 10px !important;
         border-radius: 8px !important;
@@ -913,72 +913,80 @@
         border-radius: 8px !important;
         overflow: hidden !important;
         box-shadow: none !important;
+        transition: background 160ms ease, box-shadow 160ms ease !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem:hover > .sidebarParent {
-        background: var(--ady-paper-strong) !important;
+        background: color-mix(in srgb, var(--ady-navy) 3%, var(--ady-paper-strong)) !important;
       }
+
+      /* Unread message: soft blue card + the same inset indicator style as folders. */
+      html.ady-redesign #rl-sub-left .messageListItem.unseen > .sidebarParent {
+        background: color-mix(in srgb, var(--ady-navy) 8%, var(--ady-paper-strong)) !important;
+        box-shadow:
+          inset 3px 0 0 var(--ady-navy),
+          0 0 0 1px color-mix(in srgb, var(--ady-navy) 13%, transparent) !important;
+      }
+
+      /* Open/selected message: clearly selected without making read mail bold. */
       html.ady-redesign #rl-sub-left .messageListItem.selected > .sidebarParent,
       html.ady-redesign #rl-sub-left .messageListItem.focused > .sidebarParent {
-        background: linear-gradient(90deg, rgba(239, 68, 68, .08), var(--ady-blue-soft) 18%, var(--ady-paper-strong) 100%) !important;
-        box-shadow: 0 0 0 1px rgba(29, 78, 216, .12) !important;
+        background: color-mix(in srgb, var(--ady-accent) 7%, var(--ady-paper-strong)) !important;
+        box-shadow:
+          inset 3px 0 0 var(--ady-accent),
+          0 0 0 1px color-mix(in srgb, var(--ady-accent) 18%, transparent) !important;
       }
+
+      /* Remove the old pill-shaped pseudo stripe that tapered at its ends. */
       html.ady-redesign #rl-sub-left .messageListItem > .sidebarParent::before {
-        content: "" !important;
-        position: absolute !important;
-        z-index: 3 !important;
-        left: 0 !important;
-        top: 10px !important;
-        bottom: 10px !important;
-        width: 4px !important;
-        border-radius: 999px !important;
-        background: transparent !important;
-        pointer-events: none !important;
+        display: none !important;
+        content: none !important;
       }
-      html.ady-redesign #rl-sub-left .messageListItem.unseen > .sidebarParent {
-        background: linear-gradient(90deg, rgba(29, 78, 216, .08), var(--ady-blue-soft) 22%, var(--ady-paper-strong) 100%) !important;
-      }
-      html.ady-redesign #rl-sub-left .messageListItem.unseen > .sidebarParent::before {
-        background: var(--ady-navy) !important;
-      }
-      html.ady-redesign #rl-sub-left .messageListItem.selected > .sidebarParent::before,
-      html.ady-redesign #rl-sub-left .messageListItem.focused > .sidebarParent::before {
-        background: var(--ady-accent) !important;
-      }
+
       html.ady-redesign #rl-sub-left .messageListItem .delimiter {
         border-color: var(--ady-line) !important;
         background: var(--ady-line) !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem:hover {
         transform: translateY(-1px) !important;
-        background: var(--ady-paper-strong) !important;
       }
-      html.ady-redesign #rl-sub-left .messageListItem.unseen {
-        box-shadow: none !important;
-        background: transparent !important;
-      }
-      html.ady-redesign #rl-sub-left .messageListItem.selected,
-      html.ady-redesign #rl-sub-left .messageListItem.focused {
-        box-shadow: none !important;
-        background: transparent !important;
-      }
-      html.ady-redesign #rl-sub-left .messageListItem.selected .sender,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .sender {
-        color: var(--ady-navy-deep) !important;
-        font-weight: 650 !important;
-      }
-      html.ady-redesign #rl-sub-left .messageListItem.selected .subject,
-      html.ady-redesign #rl-sub-left .messageListItem.selected .subject-prefix,
-      html.ady-redesign #rl-sub-left .messageListItem.selected .subject-suffix,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject-prefix,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject-suffix {
+
+      /* Read mail uses regular typography; state is communicated by the card background. */
+      html.ady-redesign #rl-sub-left .messageListItem .sender {
         color: var(--ady-ink) !important;
         font-weight: 500 !important;
       }
-      html.ady-redesign #rl-sub-left .messageListItem .sender,
       html.ady-redesign #rl-sub-left .messageListItem .subject,
       html.ady-redesign #rl-sub-left .messageListItem .subject-prefix,
-      html.ady-redesign #rl-sub-left .messageListItem .subject-suffix { color: var(--ady-ink) !important; }
+      html.ady-redesign #rl-sub-left .messageListItem .subject-suffix {
+        color: var(--ady-ink) !important;
+        font-weight: 400 !important;
+      }
+
+      /* Unread mail may stay slightly heavier, but no longer relies on bold alone. */
+      html.ady-redesign #rl-sub-left .messageListItem.unseen .sender {
+        font-weight: 650 !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem.unseen .subject,
+      html.ady-redesign #rl-sub-left .messageListItem.unseen .subject-prefix,
+      html.ady-redesign #rl-sub-left .messageListItem.unseen .subject-suffix {
+        font-weight: 500 !important;
+      }
+
+      /* A read selected message must not become bold just because it is open. */
+      html.ady-redesign #rl-sub-left .messageListItem.selected:not(.unseen) .sender,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .sender {
+        color: var(--ady-ink) !important;
+        font-weight: 500 !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem.selected:not(.unseen) .subject,
+      html.ady-redesign #rl-sub-left .messageListItem.selected:not(.unseen) .subject-prefix,
+      html.ady-redesign #rl-sub-left .messageListItem.selected:not(.unseen) .subject-suffix,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject-prefix,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject-suffix {
+        color: var(--ady-ink) !important;
+        font-weight: 400 !important;
+      }
       html.ady-redesign #rl-sub-left .messageListItem .date { color: var(--ady-muted) !important; }
       html.ady-redesign #rl-sub-left .b-footer {
         height: 44px !important;
