@@ -16,111 +16,15 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-
       - name: Patch userscript
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          path = Path('mail-adygheya-redesign.user.js')
-          text = path.read_text(encoding='utf-8')
-
-          def replace_once(old, new, label):
-              global text
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
-              text = text.replace(old, new, 1)
-
-          replace_once('// @version      3.1.10', '// @version      3.1.11', 'metadata version')
-          replace_once("console.log('[Почта Адыгеи Redesign v3.1.10] Скрипт инициализирован');", "console.log('[Почта Адыгеи Redesign v3.1.11] Скрипт инициализирован');", 'console version')
-
-          replace_once('''      html.ady-redesign #rl-right > div.rl-view-model.RL-SystemDropDown > .b-system-drop-down > .btn-toolbar {
-        position: absolute !important;
-        top: 0 !important;
-        right: 0 !important;
-        left: 0 !important;
-        width: auto !important;
-        margin: 0 !important;
-      }
-''', '''      html.ady-redesign #rl-right > div.rl-view-model.RL-SystemDropDown > .b-system-drop-down > .btn-toolbar {
-        position: absolute !important;
-        z-index: 103 !important;
-        top: 0 !important;
-        right: 0 !important;
-        left: 0 !important;
-        width: auto !important;
-        margin: 0 !important;
-        pointer-events: auto !important;
-      }
-''', 'toolbar stacking')
-
-          replace_once('''      html.ady-redesign #rl-right .accountPlace {
-        background: var(--ady-paper-strong) !important;
-        text-shadow: none !important;
-        cursor: copy !important;
-        user-select: none !important;
-''', '''      html.ady-redesign #rl-right .accountPlace {
-        background: var(--ady-paper-strong) !important;
-        text-shadow: none !important;
-        cursor: copy !important;
-        user-select: none !important;
-        pointer-events: auto !important;
-''', 'account pointer events')
-
-          replace_once('''      html.ady-redesign #rl-right .system-dropdown {
-        display: inline-flex !important;
-''', '''      html.ady-redesign #rl-right .system-dropdown {
-        display: inline-flex !important;
-        pointer-events: auto !important;
-''', 'system dropdown pointer events')
-
-          replace_once("""    accountPlace.title = 'Нажмите, чтобы скопировать адрес';
-  }
-""", """    accountPlace.title = 'Нажмите, чтобы скопировать адрес';
-    if (!accountPlace.dataset.adyCopyBound) {
-      accountPlace.dataset.adyCopyBound = 'true';
-      accountPlace.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        copyAccountEmail(accountPlace);
-      });
-      accountPlace.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        event.stopPropagation();
-        copyAccountEmail(accountPlace);
-      });
-    }
-  }
-""", 'direct account handlers')
-
-          replace_once('''  document.addEventListener('click', (event) => {
-    const accountPlace = event.target.closest?.('#rl-right .accountPlace');
-    if (!accountPlace || !state.enabled) return;
-    copyAccountEmail(accountPlace);
-  });
-
-  document.addEventListener('keydown', (event) => {
-    const accountPlace = event.target.closest?.('#rl-right .accountPlace');
-    if (!accountPlace || !state.enabled || (event.key !== 'Enter' && event.key !== ' ')) return;
-    event.preventDefault();
-    copyAccountEmail(accountPlace);
-  });
-
-''', '', 'remove delegated account handlers')
-
-          path.write_text(text, encoding='utf-8')
-          PY
-
+        run: python3 .github/fix-mail-toolbar-clicks.py
       - name: Check JavaScript syntax
         run: node --check mail-adygheya-redesign.user.js
-
-      - name: Commit fix and remove workflow
+      - name: Commit fix and cleanup
         shell: bash
         run: |
-          rm .github/workflows/fix-mail-toolbar-clicks.yml
+          rm -f .github/fix-mail-toolbar-clicks.py
+          rm -f .github/workflows/fix-mail-toolbar-clicks.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
