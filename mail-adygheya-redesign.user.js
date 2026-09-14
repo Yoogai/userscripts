@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.9
+// @version      3.1.10
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.9] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.10] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -625,6 +625,57 @@
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
+      }
+      html.ady-redesign #rl-right > div.rl-view-model.RL-SystemDropDown > .b-system-drop-down > .btn-toolbar {
+        position: absolute !important;
+        top: 0 !important;
+        right: 0 !important;
+        left: 0 !important;
+        width: auto !important;
+        margin: 0 !important;
+      }
+      html.ady-redesign #rl-right .accountPlace {
+        background: var(--ady-paper-strong) !important;
+        text-shadow: none !important;
+        cursor: copy !important;
+        user-select: none !important;
+        transition: border-color 160ms ease, background 160ms ease, color 160ms ease !important;
+      }
+      html.ady-redesign #rl-right .accountPlace::before,
+      html.ady-redesign #rl-right .accountPlace::after {
+        display: none !important;
+        content: none !important;
+      }
+      html.ady-redesign #rl-right .accountPlace:hover {
+        border-color: var(--ady-navy) !important;
+        background: var(--ady-blue-soft) !important;
+        color: var(--ady-navy) !important;
+      }
+      html.ady-redesign #rl-right .accountPlace:focus-visible {
+        outline: none !important;
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--ady-navy) 32%, transparent) !important;
+      }
+      html.ady-redesign .ady-copy-toast {
+        position: fixed !important;
+        z-index: 2147483000 !important;
+        top: 18px !important;
+        left: 50% !important;
+        padding: 9px 14px !important;
+        border: 1px solid var(--ady-line-strong) !important;
+        border-radius: 9px !important;
+        background: var(--ady-paper-strong) !important;
+        color: var(--ady-ink) !important;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, .18) !important;
+        font: 500 12px/18px 'Inter', sans-serif !important;
+        white-space: nowrap !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
+        transform: translate(-50%, -8px) !important;
+        transition: opacity 160ms ease, transform 160ms ease !important;
+      }
+      html.ady-redesign .ady-copy-toast.is-visible {
+        opacity: 1 !important;
+        transform: translate(-50%, 0) !important;
       }
       html.ady-redesign #rl-right .btn-group-last { order: 2 !important; }
       html.ady-redesign #rl-right .system-dropdown {
@@ -1612,6 +1663,120 @@
     window.addEventListener('resize', () => { if (menu.classList.contains('is-open')) place(); });
   }
 
+  let copyToastTimer = 0;
+
+  function normalizeAccountEmail(accountPlace) {
+    if (!accountPlace) return '';
+    let text = accountPlace.textContent.trim();
+    if (!text) return '';
+
+    const compact = text.replace(/\s+/g, '');
+    if (compact.length % 2 === 0) {
+      const half = compact.length / 2;
+      const first = compact.slice(0, half);
+      const second = compact.slice(half);
+      if (first.toLowerCase() === second.toLowerCase() && first.includes('@')) {
+        text = first;
+        accountPlace.textContent = first;
+      }
+    }
+
+    const emails = text.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g) || [];
+    if (emails.length > 1 && emails.every((email) => email.toLowerCase() === emails[0].toLowerCase())) {
+      accountPlace.textContent = emails[0];
+      return emails[0];
+    }
+    return emails[0] || text;
+  }
+
+  function normalizeSystemToolbar() {
+    if (!state.enabled) return;
+    const system = document.querySelector('#rl-right > div.rl-view-model.RL-SystemDropDown');
+    if (!system) return;
+
+    const systemDropDown = system.querySelector(':scope > .b-system-drop-down') || system.querySelector('.b-system-drop-down');
+    if (!systemDropDown) return;
+
+    const outerToolbar = systemDropDown.querySelector(':scope > .b-toolbar');
+    const buttonToolbar = outerToolbar?.querySelector(':scope > .btn-toolbar');
+    if (outerToolbar && buttonToolbar) outerToolbar.replaceWith(buttonToolbar);
+
+    const toolbar = systemDropDown.querySelector(':scope > .btn-toolbar') || systemDropDown.querySelector('.btn-toolbar');
+    if (!toolbar) return;
+
+    const accountPlaces = [...toolbar.querySelectorAll(':scope > .accountPlace')];
+    accountPlaces.slice(1).forEach((node) => node.remove());
+    const accountPlace = accountPlaces[0] || toolbar.querySelector('.accountPlace');
+    if (!accountPlace) return;
+
+    const email = normalizeAccountEmail(accountPlace);
+    accountPlace.setAttribute('role', 'button');
+    accountPlace.setAttribute('tabindex', '0');
+    accountPlace.setAttribute('aria-label', email ? `Скопировать адрес ${email}` : 'Скопировать адрес электронной почты');
+    accountPlace.title = 'Нажмите, чтобы скопировать адрес';
+  }
+
+  function showCopyToast(message) {
+    let toast = document.querySelector('.ady-copy-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'ady-copy-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('is-visible');
+    window.clearTimeout(copyToastTimer);
+    copyToastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 1800);
+  }
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch (_) {
+        // Fall back to execCommand for older RainLoop/browser combinations.
+      }
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    textarea.remove();
+    if (!copied) throw new Error('copy failed');
+  }
+
+  async function copyAccountEmail(accountPlace) {
+    const email = normalizeAccountEmail(accountPlace);
+    if (!email) return;
+    try {
+      await copyTextToClipboard(email);
+      showCopyToast(`Скопировано: ${email}`);
+    } catch (_) {
+      showCopyToast('Не удалось скопировать адрес');
+    }
+  }
+
+  document.addEventListener('click', (event) => {
+    const accountPlace = event.target.closest?.('#rl-right .accountPlace');
+    if (!accountPlace || !state.enabled) return;
+    copyAccountEmail(accountPlace);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    const accountPlace = event.target.closest?.('#rl-right .accountPlace');
+    if (!accountPlace || !state.enabled || (event.key !== 'Enter' && event.key !== ' ')) return;
+    event.preventDefault();
+    copyAccountEmail(accountPlace);
+  });
+
   function normalizeComposeButton() {
     const label = document.querySelector('#rl-left .buttonComposeText .i18n, #rl-left .buttonComposeText');
     if (label && label.textContent !== 'Новое') label.textContent = 'Новое';
@@ -1884,6 +2049,7 @@
       right.appendChild(listHandle);
     }
     applyState();
+    normalizeSystemToolbar();
     normalizeComposeButton();
     decorateToolbarButtons();
     decorateActionIcons();
