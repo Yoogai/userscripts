@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.11
+// @version      3.1.12
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.11] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.12] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1034,6 +1034,21 @@
         border-color: var(--ady-line) !important;
         background: color-mix(in srgb, var(--ady-paper-strong) 94%, transparent) !important;
       }
+      html.ady-redesign #rl-sub-right .b-message-view-wrapper {
+        z-index: 101 !important;
+      }
+      html.ady-redesign #rl-sub-right .messageItem .buttonUp,
+      html.ady-redesign #rl-sub-right .messageItem .buttonFull,
+      html.ady-redesign #rl-sub-right .messageItem .buttonUnFull {
+        z-index: 120 !important;
+        opacity: .78 !important;
+        pointer-events: auto !important;
+      }
+      html.ady-redesign #rl-sub-right .messageItem .buttonUp:hover,
+      html.ady-redesign #rl-sub-right .messageItem .buttonFull:hover,
+      html.ady-redesign #rl-sub-right .messageItem .buttonUnFull:hover {
+        opacity: 1 !important;
+      }
       
       /* Attachment Grid */
       html.ady-redesign .attachmentsPlace .attachmentList {
@@ -1351,6 +1366,37 @@
     applyState();
   }, true);
 
+  function positionMessageButtons() {
+    if (!state.enabled) return;
+    const messageItem = document.querySelector('#rl-sub-right .messageItem');
+    if (!messageItem || !messageItem.getClientRects().length) return;
+
+    const rect = messageItem.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const baseRight = Math.max(16, Math.round(window.innerWidth - rect.right + 16));
+    const baseBottom = Math.max(16, Math.round(window.innerHeight - rect.bottom + 16));
+    const controls = [
+      [messageItem.querySelector('.buttonUp'), baseRight + 40],
+      [messageItem.querySelector('.buttonFull'), baseRight],
+      [messageItem.querySelector('.buttonUnFull'), baseRight],
+    ];
+
+    for (const [button, rightOffset] of controls) {
+      if (!button) continue;
+      button.style.setProperty('right', `${rightOffset}px`, 'important');
+      button.style.setProperty('bottom', `${baseBottom}px`, 'important');
+      button.style.setProperty('z-index', '120', 'important');
+      if (!button.dataset.adyRepositionBound) {
+        button.dataset.adyRepositionBound = 'true';
+        button.addEventListener('click', () => {
+          requestAnimationFrame(positionMessageButtons);
+          window.setTimeout(positionMessageButtons, 80);
+        });
+      }
+    }
+  }
+
   function decorateAttachments() {
     if (!state.enabled) return;
     document.querySelectorAll('#rl-sub-right .attachmentItem:not(.ady-decorated)').forEach(item => {
@@ -1571,7 +1617,13 @@
   }
 
   function addDownloadAllButton(place) {
-    if (place.querySelector('.ady-attachments-footer') || !place.querySelector('.attachmentItem')) return;
+    const attachments = place.querySelectorAll('.attachmentItem');
+    const existingFooter = place.querySelector('.ady-attachments-footer');
+    if (attachments.length < 2) {
+      existingFooter?.remove();
+      return;
+    }
+    if (existingFooter) return;
     const footer = document.createElement('div');
     footer.className = 'ady-attachments-footer';
     footer.innerHTML = `<span class="ady-download-status" role="status" aria-live="polite"></span><button type="button" class="ady-download-all"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg><span>Скачать всё</span></button>`;
@@ -2060,6 +2112,7 @@
     decorateActionIcons();
     decorateFolders();
     decorateAttachments();
+    positionMessageButtons();
     decoratePaginator();
     startInfiniteScroll();
     installRecipientMenu();
@@ -2077,7 +2130,7 @@
 
   observer = new MutationObserver(scheduleConnect);
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('resize', () => applyLayout());
+  window.addEventListener('resize', () => { applyLayout(); positionMessageButtons(); });
   connect();
   [500, 1500, 3000].forEach((delay) => setTimeout(() => { if (state.enabled) decorateActionIcons(); }, delay));
   [250, 1000, 2500, 5000].forEach((delay) => setTimeout(connect, delay));
