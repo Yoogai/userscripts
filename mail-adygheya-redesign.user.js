@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.12
+// @version      3.1.13
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.12] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.13] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -448,9 +448,12 @@
         background: var(--ady-panel) !important;
       }
       html.ady-redesign #rl-sub-left > div > div.toolbar {
+        position: relative !important;
+        z-index: 130 !important;
         display: flex !important;
         align-items: center !important;
         min-height: 58px !important;
+        pointer-events: auto !important;
         padding: 10px 12px !important;
         border-bottom: 1px solid var(--ady-line) !important;
         background: var(--ady-paper-strong) !important;
@@ -459,8 +462,11 @@
         overflow: visible !important;
       }
       html.ady-redesign #rl-sub-left > div > div.toolbar > .btn-toolbar {
+        position: relative !important;
+        z-index: 131 !important;
         display: flex !important;
         align-items: center !important;
+        pointer-events: auto !important;
         gap: 6px !important;
         width: 100% !important;
       }
@@ -475,6 +481,7 @@
       html.ady-redesign #rl-sub-left > div > div.toolbar .btn {
         display: inline-flex !important;
         align-items: center !important;
+        pointer-events: auto !important;
         justify-content: center !important;
         width: 36px !important;
         height: 36px !important;
