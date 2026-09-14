@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.15
+// @version      3.1.16
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.15] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.16] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -988,6 +988,44 @@
         font-weight: 400 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem .date { color: var(--ady-muted) !important; }
+
+      /* Apply state backgrounds to the whole row, not RainLoop's narrow sidebarParent. */
+      html.ady-redesign #rl-sub-left .messageListItem {
+        overflow: hidden !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem > .sidebarParent,
+      html.ady-redesign #rl-sub-left .messageListItem > .wrapper {
+        background: transparent !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem:hover {
+        background: color-mix(in srgb, var(--ady-navy) 4%, var(--ady-paper-strong)) !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem.unseen {
+        background: color-mix(in srgb, var(--ady-navy) 12%, var(--ady-paper-strong)) !important;
+        box-shadow:
+          inset 3px 0 0 var(--ady-navy),
+          0 0 0 1px color-mix(in srgb, var(--ady-navy) 16%, transparent) !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem.unseen > .sidebarParent,
+      html.ady-redesign #rl-sub-left .messageListItem.unseen > .wrapper {
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem.selected,
+      html.ady-redesign #rl-sub-left .messageListItem.focused {
+        background: color-mix(in srgb, var(--ady-accent) 10%, var(--ady-paper-strong)) !important;
+        box-shadow:
+          inset 3px 0 0 var(--ady-accent),
+          0 0 0 1px color-mix(in srgb, var(--ady-accent) 20%, transparent) !important;
+      }
+      html.ady-redesign #rl-sub-left .messageListItem.selected > .sidebarParent,
+      html.ady-redesign #rl-sub-left .messageListItem.selected > .wrapper,
+      html.ady-redesign #rl-sub-left .messageListItem.focused > .sidebarParent,
+      html.ady-redesign #rl-sub-left .messageListItem.focused > .wrapper {
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
       html.ady-redesign #rl-sub-left .b-footer {
         height: 44px !important;
         padding: 7px 12px !important;
