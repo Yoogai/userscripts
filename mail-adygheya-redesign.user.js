@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.20
+// @version      3.1.21
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.20] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.21] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -908,26 +908,12 @@
         box-shadow: none !important;
         transition: background 160ms ease, box-shadow 160ms ease, transform 120ms ease !important;
       }
-      html.ady-redesign #rl-sub-left .messageListItem > .sidebarParent {
-        position: relative !important;
-        float: left !important;
-        width: 4px !important;
-        height: calc(100% - 8px) !important;
-        min-width: 4px !important;
-        margin: 4px 0 !important;
-        border-radius: 3px !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        overflow: hidden !important;
-      }
+      html.ady-redesign #rl-sub-left .messageListItem > .sidebarParent,
       html.ady-redesign #rl-sub-left .messageListItem > .wrapper {
         position: relative !important;
         height: 76px !important;
-        background: var(--ady-paper) !important;
-        border-radius: 0 8px 8px 0 !important;
-        overflow: hidden !important;
+        background: transparent !important;
         box-shadow: none !important;
-        transition: background 160ms ease !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem > .sidebarParent::before {
         display: none !important;
@@ -953,26 +939,26 @@
         color: var(--ady-muted) !important;
       }
 
-      /* Hover only for otherwise neutral rows. */
-      html.ady-redesign #rl-sub-left .messageListItem:not(.unseen):not(.selected):not(.focused):hover,
-      html.ady-redesign #rl-sub-left .messageListItem:not(.unseen):not(.selected):not(.focused):hover > .wrapper {
+      /* Hover only for neutral rows. */
+      html.ady-redesign #rl-sub-left .messageListItem:not(.unseen):not(.selected):not(.focused):hover {
         background: color-mix(in srgb, var(--ady-navy) 4%, var(--ady-paper-strong)) !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem:hover {
         transform: translateY(-1px) !important;
       }
 
-      /* Unread: blue card plus a 4 px blue state bar. */
-      html.ady-redesign #rl-sub-left .messageListItem.unseen,
-      html.ady-redesign #rl-sub-left .messageListItem.unseen > .wrapper {
-        background: var(--ady-blue-soft) !important;
-        background-image: none !important;
-      }
+      /* Unread: 3.1.18 geometry — inset bar clipped by the card radius. */
       html.ady-redesign #rl-sub-left .messageListItem.unseen {
-        box-shadow: 0 0 0 1px color-mix(in srgb, var(--ady-navy) 18%, transparent) !important;
+        background: color-mix(in srgb, var(--ady-navy) 12%, var(--ady-paper-strong)) !important;
+        background-image: none !important;
+        box-shadow:
+          inset 4px 0 0 var(--ady-navy),
+          0 0 0 1px color-mix(in srgb, var(--ady-navy) 16%, transparent) !important;
       }
-      html.ady-redesign #rl-sub-left .messageListItem.unseen > .sidebarParent {
-        background: var(--ady-navy) !important;
+      html.ady-redesign #rl-sub-left .messageListItem.unseen > .sidebarParent,
+      html.ady-redesign #rl-sub-left .messageListItem.unseen > .wrapper {
+        background: transparent !important;
+        box-shadow: none !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.unseen .sender {
         font-weight: 650 !important;
@@ -983,21 +969,21 @@
         font-weight: 500 !important;
       }
 
-      /* Open/selected: neutral grey card, always wins over unread styling. */
-      html.ady-redesign #rl-sub-left .messageListItem.selected,
-      html.ady-redesign #rl-sub-left .messageListItem.focused,
-      html.ady-redesign #rl-sub-left .messageListItem.selected > .wrapper,
-      html.ady-redesign #rl-sub-left .messageListItem.focused > .wrapper {
-        background: color-mix(in srgb, var(--ady-muted) 14%, var(--ady-paper-strong)) !important;
-        background-image: none !important;
-      }
+      /* Open/selected: same inset geometry, neutral gray instead of red. */
       html.ady-redesign #rl-sub-left .messageListItem.selected,
       html.ady-redesign #rl-sub-left .messageListItem.focused {
-        box-shadow: 0 0 0 1px color-mix(in srgb, var(--ady-muted) 24%, transparent) !important;
+        background: color-mix(in srgb, var(--ady-ink) 7%, var(--ady-paper-strong)) !important;
+        background-image: none !important;
+        box-shadow:
+          inset 4px 0 0 color-mix(in srgb, var(--ady-ink) 55%, var(--ady-muted)),
+          0 0 0 1px color-mix(in srgb, var(--ady-ink) 12%, transparent) !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected > .sidebarParent,
-      html.ady-redesign #rl-sub-left .messageListItem.focused > .sidebarParent {
-        background: color-mix(in srgb, var(--ady-ink) 58%, var(--ady-muted)) !important;
+      html.ady-redesign #rl-sub-left .messageListItem.selected > .wrapper,
+      html.ady-redesign #rl-sub-left .messageListItem.focused > .sidebarParent,
+      html.ady-redesign #rl-sub-left .messageListItem.focused > .wrapper {
+        background: transparent !important;
+        box-shadow: none !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected .sender,
       html.ady-redesign #rl-sub-left .messageListItem.focused .sender {
