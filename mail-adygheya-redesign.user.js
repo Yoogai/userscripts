@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.30
+// @version      3.1.31
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.30] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.31] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -905,7 +905,7 @@
       }
       html.ady-redesign.ady-auto-refreshing .opentip { display: none !important; }
       html.ady-redesign #rl-sub-left .b-message-list-wrapper > .b-content > .content {
-        padding: 0 10px !important;
+        padding: 10px !important;
         box-sizing: border-box !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem {
@@ -940,6 +940,7 @@
         align-items: center !important;
         padding: 5px 0 !important;
         box-sizing: border-box !important;
+        transform: translateY(-4px) !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem .checkedParent {
         grid-column: 1 !important;
