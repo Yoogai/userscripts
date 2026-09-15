@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.25
+// @version      3.1.26
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.25] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.26] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -2059,6 +2059,21 @@
     });
   }
 
+  function putMessageSubjectFirst() {
+    if (!state.enabled) return;
+    document.querySelectorAll('#rl-sub-left .messageListItem:not(.ady-subject-first)').forEach((item) => {
+      const wrapper = item.querySelector(':scope > .wrapper');
+      const senderParent = wrapper?.querySelector(':scope > .senderParent');
+      const subjectParent = wrapper?.querySelector(':scope > .subjectParent');
+      if (!wrapper || !senderParent || !subjectParent) return;
+
+      // Keep RainLoop's original Knockout-bound nodes intact: only change their
+      // order so the subject becomes the primary (first) line of the card.
+      wrapper.insertBefore(subjectParent, senderParent);
+      item.classList.add('ady-subject-first');
+    });
+  }
+
   function decorateToolbarButtons() {
     const buttons = [
       [document.querySelector('#rl-left .buttonCompose'), '__compose__', 'Новое письмо'],
@@ -2318,6 +2333,7 @@
     decorateToolbarButtons();
     decorateActionIcons();
     decorateFolders();
+    putMessageSubjectFirst();
     decorateAttachments();
     positionMessageButtons();
     decoratePaginator();
