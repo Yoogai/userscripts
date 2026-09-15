@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.17
+// @version      3.1.18
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.17] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.18] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1003,7 +1003,7 @@
       html.ady-redesign #rl-sub-left .messageListItem.unseen {
         background: color-mix(in srgb, var(--ady-navy) 12%, var(--ady-paper-strong)) !important;
         box-shadow:
-          inset 3px 0 0 var(--ady-navy),
+          inset 4px 0 0 var(--ady-navy),
           0 0 0 1px color-mix(in srgb, var(--ady-navy) 16%, transparent) !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.unseen > .sidebarParent,
@@ -1013,10 +1013,10 @@
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected,
       html.ady-redesign #rl-sub-left .messageListItem.focused {
-        background: color-mix(in srgb, var(--ady-accent) 10%, var(--ady-paper-strong)) !important;
+        background: color-mix(in srgb, var(--ady-ink) 7%, var(--ady-paper-strong)) !important;
         box-shadow:
-          inset 3px 0 0 var(--ady-accent),
-          0 0 0 1px color-mix(in srgb, var(--ady-accent) 20%, transparent) !important;
+          inset 4px 0 0 color-mix(in srgb, var(--ady-ink) 55%, var(--ady-muted)),
+          0 0 0 1px color-mix(in srgb, var(--ady-ink) 12%, transparent) !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected > .sidebarParent,
       html.ady-redesign #rl-sub-left .messageListItem.selected > .wrapper,
