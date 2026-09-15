@@ -1,0 +1,30 @@
+name: Patch disable settings redesign
+
+on:
+  push:
+    paths:
+      - '.github/scripts/patch-disable-settings-v330.py'
+      - '.github/workflows/patch-disable-settings-v330.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch userscript
+        run: python3 .github/scripts/patch-disable-settings-v330.py
+      - name: Check JavaScript syntax
+        run: node --check mail-adygheya-redesign.user.js
+      - name: Commit fix and cleanup
+        run: |
+          rm -f .github/scripts/patch-disable-settings-v330.py .github/workflows/patch-disable-settings-v330.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Disable redesign on RainLoop settings"
+          git push
