@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.29
+// @version      3.1.30
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.29] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.30] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1331,18 +1331,6 @@
       html.ady-redesign[data-ady-density="spacious"] #rl-sub-left .messageListItem > .sidebarParent,
       html.ady-redesign[data-ady-density="spacious"] #rl-sub-left .messageListItem > .wrapper { height: 94px !important; }
 
-      /* Mail-layout controls are not useful inside RainLoop settings. */
-      html.ady-redesign.ady-settings-open #ady-folder-resizer,
-      html.ady-redesign.ady-settings-open #ady-list-resizer,
-      html.ady-redesign.ady-settings-open #rl-left .b-footer .buttonResize,
-      html.ady-redesign.ady-settings-open .b-settings.b-settins-right > .b-toolbar {
-        display: none !important;
-        pointer-events: none !important;
-      }
-      html.ady-redesign.ady-settings-open .b-settings.b-settins-right > .b-content {
-        top: 0 !important;
-      }
-
       html.ady-redesign.ady-focus #rl-left,
       html.ady-redesign.ady-focus #rl-sub-left,
       html.ady-redesign.ady-focus #ady-folder-resizer,
@@ -1418,6 +1406,7 @@
   }
 
   function applyLayout(persist = false) {
+    if (isSettingsOpen()) return;
     if (!state.enabled || window.innerWidth < 800 || !center || !left || !right || !subLeft || !subRight) return;
     const total = center.getBoundingClientRect().width;
     state.folderWidth = clamp(state.folderWidth, MIN_FOLDER, Math.min(340, total - MIN_LIST - MIN_READER));
@@ -1468,13 +1457,31 @@
     if (state.enabled) requestAnimationFrame(() => applyLayout());
   }
 
-  function syncSettingsChrome() {
-    const settingsOpen = [...document.querySelectorAll('.b-settings.b-settins-right')].some((pane) => {
+  function isSettingsOpen() {
+    const routeMatch = /(?:^|#\/)settings(?:\/|$)/i.test(location.hash);
+    if (routeMatch) return true;
+    return [...document.querySelectorAll('.b-settings.b-settins-right, .b-settins-right')].some((pane) => {
       if (!pane.getClientRects().length) return false;
       const style = getComputedStyle(pane);
-      return style.display !== 'none' && style.visibility !== 'hidden';
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
     });
-    document.documentElement.classList.toggle('ady-settings-open', state.enabled && settingsOpen);
+  }
+
+  function suspendRedesignForSettings() {
+    if (!isSettingsOpen()) return false;
+
+    // Settings must remain completely native RainLoop UI.
+    document.documentElement.classList.remove('ady-redesign', 'ady-focus', 'ady-collapsed', 'ady-settings-open');
+    document.documentElement.removeAttribute('data-ady-theme');
+    document.documentElement.removeAttribute('data-ady-density');
+
+    folderHandle?.remove();
+    listHandle?.remove();
+    folderHandle = null;
+    listHandle = null;
+
+    restoreOriginals();
+    return true;
   }
 
   function createHandle(id, kind) {
@@ -2458,6 +2465,11 @@
 
   function connect() {
     document.getElementById('ady-redesign-dock')?.remove();
+
+    // Do not modify RainLoop settings at all. This check intentionally runs
+    // before mailbox-only DOM guards because settings may not contain subpanes.
+    if (suspendRedesignForSettings()) return;
+
     const nextCenter = document.querySelector('#rl-center');
     const nextLeft = document.querySelector('#rl-left');
     const nextRight = document.querySelector('#rl-right');
@@ -2487,7 +2499,6 @@
       right.appendChild(listHandle);
     }
     applyState();
-    syncSettingsChrome();
     normalizeSystemToolbar();
     normalizeComposeButton();
     decorateToolbarButtons();
@@ -2513,7 +2524,7 @@
 
   observer = new MutationObserver(scheduleConnect);
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('resize', () => { applyLayout(); positionMessageButtons(); syncSettingsChrome(); });
+  window.addEventListener('resize', () => { if (!isSettingsOpen()) { applyLayout(); positionMessageButtons(); } });
   window.addEventListener('hashchange', scheduleConnect);
   connect();
   [500, 1500, 3000].forEach((delay) => setTimeout(() => { if (state.enabled) decorateActionIcons(); }, delay));
