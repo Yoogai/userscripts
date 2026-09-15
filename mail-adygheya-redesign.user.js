@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.27
+// @version      3.1.28
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.27] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.28] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1070,16 +1070,16 @@
         background: var(--ady-line) !important;
       }
 
-      /* Neutral read mail. */
+      /* Neutral read mail: subject is primary, sender is secondary. */
       html.ady-redesign #rl-sub-left .messageListItem .sender {
-        color: var(--ady-ink) !important;
-        font-weight: 500 !important;
+        color: var(--ady-muted) !important;
+        font-weight: 400 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem .subject,
       html.ady-redesign #rl-sub-left .messageListItem .subject-prefix,
       html.ady-redesign #rl-sub-left .messageListItem .subject-suffix {
         color: var(--ady-ink) !important;
-        font-weight: 400 !important;
+        font-weight: 600 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem .date {
         color: var(--ady-muted) !important;
@@ -1107,12 +1107,13 @@
         box-shadow: none !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.unseen .sender {
-        font-weight: 650 !important;
+        color: var(--ady-ink-soft) !important;
+        font-weight: 500 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.unseen .subject,
       html.ady-redesign #rl-sub-left .messageListItem.unseen .subject-prefix,
       html.ady-redesign #rl-sub-left .messageListItem.unseen .subject-suffix {
-        font-weight: 500 !important;
+        font-weight: 700 !important;
       }
 
       /* Open/selected: same inset geometry, neutral gray instead of red. */
@@ -1133,8 +1134,8 @@
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected .sender,
       html.ady-redesign #rl-sub-left .messageListItem.focused .sender {
-        color: var(--ady-ink) !important;
-        font-weight: 500 !important;
+        color: var(--ady-muted) !important;
+        font-weight: 400 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected .subject,
       html.ady-redesign #rl-sub-left .messageListItem.selected .subject-prefix,
@@ -1143,7 +1144,7 @@
       html.ady-redesign #rl-sub-left .messageListItem.focused .subject-prefix,
       html.ady-redesign #rl-sub-left .messageListItem.focused .subject-suffix {
         color: var(--ady-ink) !important;
-        font-weight: 400 !important;
+        font-weight: 600 !important;
       }
 
       html.ady-redesign #rl-sub-left .b-footer {
