@@ -1,0 +1,27 @@
+name: Patch message card spacing
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-message-card-gap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch userscript
+        run: python .github/scripts/patch-message-card-gap.py
+      - name: Check JavaScript syntax
+        run: node --check mail-adygheya-redesign.user.js
+      - name: Commit fix and cleanup
+        run: |
+          rm -f .github/scripts/patch-message-card-gap.py .github/workflows/patch-message-card-gap.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add spacing between message cards" || exit 0
+          git push
