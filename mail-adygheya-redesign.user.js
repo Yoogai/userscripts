@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.22
+// @version      3.1.23
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.22] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.23] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1146,9 +1146,15 @@
 
       html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .iconMain,
       html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .iconBG,
+      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .iconPreview,
       html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .attachmentIcon,
       html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .attachmentIconText {
         display: none !important;
+      }
+      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent.hasPreview:hover .iconPreview,
+      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent.hasPreplay:hover .iconPreview {
+        display: none !important;
+        background: transparent !important;
       }
 
       /* File Type Icons */
