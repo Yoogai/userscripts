@@ -1,0 +1,32 @@
+name: Patch message spacing v3.1.32
+
+on:
+  push:
+    paths:
+      - '.github/scripts/patch-message-spacing-v332.py'
+      - '.github/workflows/patch-message-spacing-v332.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch userscript
+        run: python .github/scripts/patch-message-spacing-v332.py
+      - name: Check JavaScript syntax
+        run: node --check mail-adygheya-redesign.user.js
+      - name: Commit fix and cleanup
+        run: |
+          rm -f .github/scripts/patch-message-spacing-v332.py
+          rm -f .github/workflows/patch-message-spacing-v332.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix message list spacing and scrollbar gutter"
+          git push
