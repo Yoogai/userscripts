@@ -1,0 +1,30 @@
+name: Patch message cards v3.1.19
+
+on:
+  push:
+    paths:
+      - '.github/scripts/patch-message-cards-v319.py'
+      - '.github/workflows/patch-message-cards-v319.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch userscript
+        run: python .github/scripts/patch-message-cards-v319.py
+      - name: Check JavaScript syntax
+        run: node --check mail-adygheya-redesign.user.js
+      - name: Commit fix and cleanup
+        run: |
+          git config user.name "Yoogai"
+          git config user.email "134015740+Yoogai@users.noreply.github.com"
+          rm -f .github/scripts/patch-message-cards-v319.py .github/workflows/patch-message-cards-v319.yml
+          git add -A
+          git commit -m "Refine message selection and list spacing"
+          git push
