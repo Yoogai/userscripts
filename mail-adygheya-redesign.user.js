@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.23
+// @version      3.1.24
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.23] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.24] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -406,6 +406,19 @@
         overflow: hidden !important;
       }
       html.ady-redesign.ady-collapsed #rl-left .e-link > :not(.ady-folder-icon) { display: none !important; }
+      /* Keep RainLoop-hidden/service folders hidden when collapsed.
+         The generic display:flex above would otherwise resurrect .e-link.hidden. */
+      html.ady-redesign.ady-collapsed #rl-left .e-link.hidden {
+        display: none !important;
+      }
+      html.ady-redesign.ady-collapsed #rl-left .e-item:has(> .e-link.hidden) {
+        display: none !important;
+        margin: 0 !important;
+      }
+      /* A 56px rail cannot represent nested folder hierarchy clearly. */
+      html.ady-redesign.ady-collapsed #rl-left .b-sub-folders {
+        display: none !important;
+      }
       html.ady-redesign.ady-collapsed #rl-left .ady-folder-icon { margin: 0 !important; }
       html.ady-redesign.ady-collapsed #rl-left .b-footer {
         display: flex !important;
