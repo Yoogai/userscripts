@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.33
+// @version      3.1.34
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.33] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.34] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1034,7 +1034,7 @@
       html.ady-redesign #rl-sub-left .messageListItem .subject-prefix,
       html.ady-redesign #rl-sub-left .messageListItem .subject-suffix {
         color: var(--ady-ink) !important;
-        font-weight: 600 !important;
+        font-weight: 400 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem .sender {
         color: var(--ady-muted) !important;
@@ -1050,12 +1050,12 @@
         font-weight: 500 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected .subject,
-      html.ady-redesign #rl-sub-left .messageListItem.selected .subject-prefix,
-      html.ady-redesign #rl-sub-left .messageListItem.selected .subject-suffix,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject-prefix,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject-suffix {
-        font-weight: 600 !important;
+      html.ady-redesign #rl-sub-left .messageListItem.selected:not(.unseen) .subject-prefix,
+      html.ady-redesign #rl-sub-left .messageListItem.selected:not(.unseen) .subject-suffix,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject-prefix,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject-suffix {
+        font-weight: 400 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected .sender,
       html.ady-redesign #rl-sub-left .messageListItem.focused .sender {
@@ -1080,7 +1080,7 @@
       html.ady-redesign #rl-sub-left .messageListItem .subject-prefix,
       html.ady-redesign #rl-sub-left .messageListItem .subject-suffix {
         color: var(--ady-ink) !important;
-        font-weight: 600 !important;
+        font-weight: 400 !important;
       }
       html.ady-redesign #rl-sub-left .messageListItem .date {
         color: var(--ady-muted) !important;
@@ -1140,12 +1140,12 @@
       }
       html.ady-redesign #rl-sub-left .messageListItem.selected .subject,
       html.ady-redesign #rl-sub-left .messageListItem.selected .subject-prefix,
-      html.ady-redesign #rl-sub-left .messageListItem.selected .subject-suffix,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject-prefix,
-      html.ady-redesign #rl-sub-left .messageListItem.focused .subject-suffix {
+      html.ady-redesign #rl-sub-left .messageListItem.selected:not(.unseen) .subject-suffix,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject-prefix,
+      html.ady-redesign #rl-sub-left .messageListItem.focused:not(.unseen) .subject-suffix {
         color: var(--ady-ink) !important;
-        font-weight: 600 !important;
+        font-weight: 400 !important;
       }
 
       html.ady-redesign #rl-sub-left .b-footer {
