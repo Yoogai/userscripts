@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Ozon → Markdown + ZIP Exporter PRO
 // @namespace    https://dwatawolfo.tools/ozon-exporter-pro
-// @version      4.2.0
+// @version      4.2.1
 // @description  Экспорт карточки Ozon, отзывов и изображений в Markdown, JSON или ZIP.
 // @match        *://www.ozon.ru/product/*
 // @match        *://ozon.ru/product/*
@@ -25,7 +25,7 @@
 
   const UI_ROOT_ID = 'ozmd-root-pro';
   const TOAST_ROOT_ID = 'ozmd-toast-root-pro';
-  const SCRIPT_VERSION = '4.2.0';
+  const SCRIPT_VERSION = '4.2.1';
 
   const DEFAULTS = {
     mode: 'full',
@@ -949,13 +949,13 @@
   function normalizeApiReview(raw) {
     if (!raw || typeof raw !== 'object') return null;
 
-    const reviewUuid = findFirstDeep(raw, ['reviewUuid', 'uuid', 'reviewId', 'id']);
-    const author = findFirstDeep(raw, ['author', 'authorName', 'userName', 'name']);
+    const reviewUuid = findFirstDeep(raw, ['reviewUuid', 'uuid', 'reviewId']);
+    const author = findFirstDeep(raw, ['authorName', 'userName', 'displayName', 'nickname']);
     const rating = findFirstDeep(raw, ['rating', 'score', 'stars', 'grade']);
     const sku = findFirstDeep(raw, ['skuId', 'sku', 'productSku', 'offerId']);
     const publishedRaw = findFirstDeep(raw, ['publishedAt', 'published_at', 'createdAt', 'created_at', 'date']);
     const textParts = [
-      findFirstDeep(raw, ['text', 'reviewText', 'comment', 'commentText', 'content', 'body']),
+      findFirstDeep(raw, ['text', 'reviewText', 'comment', 'commentText']),
       findFirstDeep(raw, ['advantages', 'pros', 'positive', 'dignity']),
       findFirstDeep(raw, ['disadvantages', 'cons', 'negative', 'limitations'])
     ].filter(Boolean);
@@ -981,8 +981,9 @@
   function looksLikeApiReviewObject(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const keys = Object.keys(value).join(' ');
-    if (/reviewUuid|reviewId|reviewText|commentText|publishedAt/i.test(keys)) return true;
-    return /rating|score|stars|grade/i.test(keys) && /text|comment|content|body|advantages|disadvantages|pros|cons/i.test(keys);
+    const hasReviewSignal = /reviewUuid|reviewId|publishedAt|reviewText|commentText|advantages|disadvantages/i.test(keys);
+    const hasTextSignal = /text|reviewText|comment|commentText|advantages|disadvantages|pros|cons/i.test(keys);
+    return hasReviewSignal && hasTextSignal;
   }
 
   function collectApiReviewsFromValue(value, out = [], seen = new Set()) {
@@ -1039,6 +1040,8 @@
     const paging = value.paging;
     if (paging && typeof paging === 'object' && Number.isFinite(Number(paging.total)) && Number.isFinite(Number(paging.commonTotal)) && Number.isFinite(Number(paging.perPage))) {
       meta.total = Number(paging.total);
+      meta.page = Number(paging.page) || meta.page || 1;
+      meta.perPage = Number(paging.perPage);
     }
     if (typeof value.nextPage === 'string' && /\/reviews\/pdp-part\?/i.test(value.nextPage)) meta.nextPage = norm(value.nextPage);
     if (meta.total && meta.nextPage) return meta;
@@ -1075,14 +1078,21 @@
     let pagePath = getReviewApiStartPath();
     let page = 0;
     let available = 0;
+    let pagesTotal = Number.MAX_SAFE_INTEGER;
 
-    while (pagePath && state.reviewCache.length < targetCount) {
+    while (pagePath && page < pagesTotal && state.reviewCache.length < targetCount) {
       if (state.stopRequested) throw new Error('Операция остановлена.');
       page += 1;
-      setStatus(`Загружаю отзывы через API: ${state.reviewCache.length}${available ? `/${available}` : ''}, стр. ${page}`);
+      const visibleCount = available ? Math.min(state.reviewCache.length, available) : state.reviewCache.length;
+      setStatus(`Загружаю отзывы через API: ${visibleCount}${available ? `/${available}` : ''}, стр. ${page}`);
       const result = await fetchReviewApiPage(pagePath);
       available = result.total || available;
+      if (available && result.perPage) pagesTotal = Math.ceil(available / result.perPage);
       addReviewsToCache(result.reviews, `api-page-${page}`);
+      if (available && state.reviewCache.length > available) {
+        dbg('reviews:cache-trim', { before: state.reviewCache.length, available, page });
+        state.reviewCache = state.reviewCache.slice(0, available);
+      }
       pagePath = result.nextPage || '';
     }
 
