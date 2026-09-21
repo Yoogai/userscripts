@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google AI Country Unlocker (Flow + Gemini)
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      1.0.0
+// @version      1.2.0
 // @description  Restores client-side availability flags for Google Flow, Labs and Gemini
 // @author       Yoogai
 // @license      MIT
@@ -22,39 +22,42 @@
     const FLOW_RPCS = new Set(['cPZSdc', 'KV2T2d', 'rThb8d', 'cO7JOb', 'md9xJf']);
     const GEMINI_RPC = 'otAQ7b';
     const GEMINI_CAPABILITY_IDS = [142, 187, 200];
+    const GEMINI_STATUS_AVAILABLE = 1000;
     const LOG_PREFIX = '[Google AI Unlocker]';
     let patchCount = 0;
+    let targetResponseCount = 0;
 
-    const byteLength = (value) => {
-        try {
-            return new TextEncoder().encode(value).length;
-        } catch (_) {
-            return value.length;
-        }
-    };
+    function hasTargetRpc(value) {
+        return value.includes(GEMINI_RPC) || [...FLOW_RPCS].some((rpcId) => value.includes(rpcId));
+    }
 
-    // batchexecute lengths are UTF-8 byte counts, not JavaScript character counts.
-    function sliceUtf8Bytes(value, start, bytes) {
-        let index = start;
-        let used = 0;
+    // Flow's Angular bootstrap uses this flag before its normal data has loaded.
+    // Keep the hook at document-start so a later page assignment cannot undo it.
+    try {
+        let wizData = win.WIZ_global_data || {};
+        const forceSignedInFlag = (value) => {
+            if (!value || typeof value !== 'object') return value;
+            value.awbSEf = true;
+            return new Proxy(value, {
+                set(target, property, nextValue) {
+                    target[property] = nextValue;
+                    target.awbSEf = true;
+                    return true;
+                },
+            });
+        };
 
-        while (index < value.length && used < bytes) {
-            const codePoint = value.codePointAt(index);
-            const charCount = codePoint > 0xffff ? 2 : 1;
-            const codePointBytes = codePoint <= 0x7f
-                ? 1
-                : codePoint <= 0x7ff
-                    ? 2
-                    : codePoint <= 0xffff
-                        ? 3
-                        : 4;
-
-            if (used + codePointBytes > bytes) return null;
-            used += codePointBytes;
-            index += charCount;
-        }
-
-        return used === bytes ? { text: value.slice(start, index), end: index } : null;
+        wizData = forceSignedInFlag(wizData);
+        Object.defineProperty(win, 'WIZ_global_data', {
+            configurable: true,
+            enumerable: true,
+            get: () => wizData,
+            set: (value) => {
+                wizData = forceSignedInFlag(value || {});
+            },
+        });
+    } catch (error) {
+        console.warn(LOG_PREFIX, 'WIZ_global_data hook failed', error);
     }
 
     function patchFlowPayload(value, rpcId) {
@@ -77,10 +80,23 @@
         }
     }
 
-    function patchGeminiCapabilities(value) {
+    function patchGeminiPayload(value) {
+        let patched = value;
+        try {
+            const data = JSON.parse(value);
+            if (Array.isArray(data) && typeof data[14] === 'number' && data[14] !== GEMINI_STATUS_AVAILABLE) {
+                // GetUserStatus places the client eligibility code at index 14.
+                // Keep the live model catalogue at index 15 intact.
+                data[14] = GEMINI_STATUS_AVAILABLE;
+                patched = JSON.stringify(data);
+            }
+        } catch (_) {
+            // The capability pass below still works on a JSON-shaped string.
+        }
+
         // GetUserStatus returns capability lists as runs of small integer IDs.
         // Keep the change narrow: short arrays are not capability lists.
-        return value.replace(/\[((?:\d{1,4},){8,}\d{1,4})\]/g, (whole, inner) => {
+        return patched.replace(/\[((?:\d{1,4},){8,}\d{1,4})\]/g, (whole, inner) => {
             const ids = inner.split(',').map(Number);
             const missing = GEMINI_CAPABILITY_IDS.filter((id) => !ids.includes(id));
             return missing.length ? '[' + inner + ',' + missing.join(',') + ']' : whole;
@@ -97,7 +113,7 @@
 
         let patched = entry[2];
         if (FLOW_RPCS.has(rpcId)) patched = patchFlowPayload(patched, rpcId);
-        else if (rpcId === GEMINI_RPC) patched = patchGeminiCapabilities(patched);
+        else if (rpcId === GEMINI_RPC) patched = patchGeminiPayload(patched);
         else return false;
 
         if (patched === entry[2]) return false;
@@ -115,8 +131,7 @@
     }
 
     function patchGoogleStream(raw) {
-        if (typeof raw !== 'string' || !raw) return raw;
-        if (!raw.includes('cPZSdc') && !raw.includes(GEMINI_RPC)) return raw;
+        if (typeof raw !== 'string' || !raw || !hasTargetRpc(raw)) return raw;
 
         let start = 0;
         let prefix = '';
@@ -158,14 +173,17 @@
                 break;
             }
 
-            const declaredBytes = Number(lengthText);
-            const segment = sliceUtf8Bytes(raw, newline, declaredBytes);
-            if (!segment || !segment.text.startsWith('\n')) {
+            // Google's batchexecute framing is counted against the JavaScript
+            // response string. Do not convert it to UTF-8 bytes: a localized
+            // response (for example, Russian Gemini labels) then lands mid-codepoint.
+            const declaredLength = Number(lengthText);
+            const segment = raw.substr(newline, declaredLength);
+            if (!segment.startsWith('\n') || segment.length !== declaredLength) {
                 output += raw.slice(position);
                 break;
             }
 
-            const payloadText = segment.text.slice(1);
+            const payloadText = segment.slice(1);
             let payload;
             let frameChanged = false;
             try {
@@ -177,14 +195,14 @@
 
             if (frameChanged) {
                 const rebuilt = '\n' + JSON.stringify(payload);
-                output += String(byteLength(rebuilt)) + '\n' + rebuilt;
+                output += String(rebuilt.length) + rebuilt;
                 changed = true;
                 patchCount++;
             } else {
-                output += lengthText + '\n' + segment.text;
+                output += lengthText + segment;
             }
 
-            position = segment.end;
+            position = newline + declaredLength;
         }
 
         return changed ? output : raw;
@@ -233,6 +251,7 @@
 
     function patchResponse(response, url) {
         if (!url.includes('batchexecute') && !shouldPatchJsonEndpoint(url)) return response;
+        targetResponseCount++;
 
         return response.clone().text().then((raw) => {
             let patched = raw;
@@ -296,6 +315,7 @@
                         || this.responseType === 'text';
                     if (!isTextResponse || typeof raw !== 'string' || !raw) return raw;
                     if (!url.includes('batchexecute') && !shouldPatchJsonEndpoint(url)) return raw;
+                    targetResponseCount++;
 
                     if (this.__googleAiCacheRaw === raw) return this.__googleAiCachePatched;
                     let patched = raw;
@@ -322,9 +342,11 @@
 
     win.__googleAiUnlockStatus = () => ({
         patches: patchCount,
+        targetResponses: targetResponseCount,
         flowRpcs: [...FLOW_RPCS],
         geminiRpc: GEMINI_RPC,
         geminiCapabilityIds: [...GEMINI_CAPABILITY_IDS],
+        geminiAvailableStatus: GEMINI_STATUS_AVAILABLE,
     });
 
     console.info(LOG_PREFIX, 'active on', location.host);
