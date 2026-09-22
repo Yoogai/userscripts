@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.35
+// @version      3.1.36
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.35] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.36] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -2076,23 +2076,55 @@
       const item = event.target.closest('.ady-recipient-item');
       if (!item) return;
       event.preventDefault();
+
       const input = getInput();
       if (!input) return;
+
+      const address = item.dataset.address;
       const name = item.querySelector('.ady-recipient-name')?.textContent || '';
-      if (rememberRecipient(name, item.dataset.address, true)) saveRecentRecipients();
+      if (rememberRecipient(name, address, true)) saveRecentRecipients();
+
       activeInput = input;
       input.focus();
-      input.value = item.dataset.address;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      for (const type of ['keydown', 'keypress', 'keyup']) {
-        input.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+
+      // Add the exact address through RainLoop/Inputosaurus itself. Synthetic
+      // Enter used to be intercepted by the hidden jQuery UI autocomplete,
+      // which could insert whichever stock suggestion was currently active.
+      const container = input.closest('.inputosaurus-container');
+      const originalInput = container?.querySelector('.inputosaurus-input-hidden input');
+      const jq = window.jQuery || window.$;
+      let parsed = false;
+
+      if (originalInput && jq?.fn?.inputosaurus) {
+        try {
+          input.value = address;
+          jq(originalInput).inputosaurus('parseInput');
+          parsed = true;
+        } catch (_) {
+          parsed = false;
+        }
       }
+
+      // Fallback for older RainLoop builds: use a delimiter instead of Enter so
+      // the stock autocomplete cannot select an unrelated active suggestion.
+      if (!parsed) {
+        input.value = `${address};`;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keydown', {
+          key: ';',
+          code: 'Semicolon',
+          keyCode: 186,
+          which: 186,
+          bubbles: true
+        }));
+      }
+
+      menu.classList.remove('is-open');
       window.setTimeout(() => {
         rememberChosenRecipients();
         input.focus();
         place();
         render();
-        menu.classList.add('is-open');
       }, 80);
     });
 
