@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google AI Country Unlocker (Flow + Gemini)
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      1.2.0
+// @version      1.3.0
 // @description  Restores client-side availability flags for Google Flow, Labs and Gemini
 // @author       Yoogai
 // @license      MIT
@@ -31,33 +31,35 @@
         return value.includes(GEMINI_RPC) || [...FLOW_RPCS].some((rpcId) => value.includes(rpcId));
     }
 
-    // Flow's Angular bootstrap uses this flag before its normal data has loaded.
-    // Keep the hook at document-start so a later page assignment cannot undo it.
-    try {
-        let wizData = win.WIZ_global_data || {};
-        const forceSignedInFlag = (value) => {
-            if (!value || typeof value !== 'object') return value;
-            value.awbSEf = true;
-            return new Proxy(value, {
-                set(target, property, nextValue) {
-                    target[property] = nextValue;
-                    target.awbSEf = true;
-                    return true;
+    if (location.hostname === 'flow.google.com' || location.hostname === 'labs.google') {
+        // Flow's Angular bootstrap uses this flag before its normal data has loaded.
+        // Do not install this Flow-only hook on Gemini's different application shell.
+        try {
+            let wizData = win.WIZ_global_data || {};
+            const forceSignedInFlag = (value) => {
+                if (!value || typeof value !== 'object') return value;
+                value.awbSEf = true;
+                return new Proxy(value, {
+                    set(target, property, nextValue) {
+                        target[property] = nextValue;
+                        target.awbSEf = true;
+                        return true;
+                    },
+                });
+            };
+
+            wizData = forceSignedInFlag(wizData);
+            Object.defineProperty(win, 'WIZ_global_data', {
+                configurable: true,
+                enumerable: true,
+                get: () => wizData,
+                set: (value) => {
+                    wizData = forceSignedInFlag(value || {});
                 },
             });
-        };
-
-        wizData = forceSignedInFlag(wizData);
-        Object.defineProperty(win, 'WIZ_global_data', {
-            configurable: true,
-            enumerable: true,
-            get: () => wizData,
-            set: (value) => {
-                wizData = forceSignedInFlag(value || {});
-            },
-        });
-    } catch (error) {
-        console.warn(LOG_PREFIX, 'WIZ_global_data hook failed', error);
+        } catch (error) {
+            console.warn(LOG_PREFIX, 'WIZ_global_data hook failed', error);
+        }
     }
 
     function patchFlowPayload(value, rpcId) {
@@ -81,26 +83,32 @@
     }
 
     function patchGeminiPayload(value) {
-        let patched = value;
         try {
             const data = JSON.parse(value);
-            if (Array.isArray(data) && typeof data[14] === 'number' && data[14] !== GEMINI_STATUS_AVAILABLE) {
-                // GetUserStatus places the client eligibility code at index 14.
-                // Keep the live model catalogue at index 15 intact.
-                data[14] = GEMINI_STATUS_AVAILABLE;
-                patched = JSON.stringify(data);
-            }
-        } catch (_) {
-            // The capability pass below still works on a JSON-shaped string.
-        }
+            if (!Array.isArray(data)) return value;
 
-        // GetUserStatus returns capability lists as runs of small integer IDs.
-        // Keep the change narrow: short arrays are not capability lists.
-        return patched.replace(/\[((?:\d{1,4},){8,}\d{1,4})\]/g, (whole, inner) => {
-            const ids = inner.split(',').map(Number);
-            const missing = GEMINI_CAPABILITY_IDS.filter((id) => !ids.includes(id));
-            return missing.length ? '[' + inner + ',' + missing.join(',') + ']' : whole;
-        });
+            // A non-1000 GetUserStatus result is a server-side refusal. Faking
+            // it as available only makes Gemini continue into later failed RPCs.
+            if (typeof data[14] === 'number' && data[14] !== GEMINI_STATUS_AVAILABLE) {
+                console.warn(LOG_PREFIX, 'Gemini server status left unchanged:', data[14]);
+                return value;
+            }
+
+            // The top-level capability list is GetUserStatus[17]. Earlier code
+            // rewrote every long numeric array in the response, including lists
+            // unrelated to model availability, which can corrupt the app state.
+            const capabilities = data[17];
+            if (!Array.isArray(capabilities) || capabilities.length < 9 || !capabilities.every(Number.isInteger)) {
+                return value;
+            }
+
+            const missing = GEMINI_CAPABILITY_IDS.filter((id) => !capabilities.includes(id));
+            if (!missing.length) return value;
+            data[17] = [...capabilities, ...missing];
+            return JSON.stringify(data);
+        } catch (_) {
+            return value;
+        }
     }
 
     function patchEntry(entry) {
