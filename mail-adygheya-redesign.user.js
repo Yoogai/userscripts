@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.34
+// @version      3.1.35
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.34] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.35] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1956,15 +1956,24 @@
 
     const rememberStockSuggestions = () => {
       let changed = false;
-      const nodes = new Set(document.querySelectorAll([
-        '.ui-autocomplete li',
-        '.ui-autocomplete .ui-menu-item',
-        '.ui-autocomplete [data-value]',
-        '.ui-autocomplete [data-email]'
-      ].join(',')));
-      for (const node of nodes) {
+
+      // Read each stock RainLoop suggestion only once. The same address can be
+      // represented by a <li> plus nested helper nodes with slightly different
+      // text. Writing those variants back one after another can make the stored
+      // name oscillate and, together with MutationObserver, cause a render loop.
+      const suggestions = new Map();
+      document.querySelectorAll('.ui-autocomplete li').forEach((node) => {
         const recipient = recipientFromNode(node);
-        if (recipient && rememberRecipient(recipient.name, recipient.address, false)) changed = true;
+        if (!recipient?.address) return;
+        const key = recipient.address.toLowerCase();
+        const previous = suggestions.get(key);
+        if (!previous || (recipient.name || '').length > (previous.name || '').length) {
+          suggestions.set(key, recipient);
+        }
+      });
+
+      for (const recipient of suggestions.values()) {
+        if (rememberRecipient(recipient.name, recipient.address, false)) changed = true;
       }
       if (changed) saveRecentRecipients();
       return changed;
@@ -2023,15 +2032,24 @@
 
     const open = (input) => {
       activeInput = input;
-      rememberStockSuggestions();
-      rememberChosenRecipients();
       place();
       if (render()) menu.classList.add('is-open');
+      else menu.classList.remove('is-open');
     };
 
-    const stockObserver = new MutationObserver(() => {
-      const changed = rememberStockSuggestions() || rememberChosenRecipients();
-      if (changed && menu.classList.contains('is-open')) render();
+    let stockObserverScheduled = false;
+    const stockObserver = new MutationObserver((mutations) => {
+      // Our own menu is rebuilt with innerHTML. Never react to those mutations:
+      // otherwise the observer can recursively trigger render() and freeze the UI.
+      const externalMutation = mutations.some((mutation) => !menu.contains(mutation.target));
+      if (!externalMutation || stockObserverScheduled) return;
+
+      stockObserverScheduled = true;
+      requestAnimationFrame(() => {
+        stockObserverScheduled = false;
+        const changed = rememberStockSuggestions() || rememberChosenRecipients();
+        if (changed && menu.classList.contains('is-open')) render();
+      });
     });
     stockObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
 
