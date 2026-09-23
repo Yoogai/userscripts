@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hide ChatGPT Plus expiry banner
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      1.0.0
+// @version      1.1.0
 // @description  Убирает баннер о скором окончании подписки ChatGPT Plus
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
@@ -17,21 +17,7 @@
     const HEADER_SELECTOR = '[data-prompt-textarea-header]';
     const TITLE = 'Срок действия вашей подписки Plus скоро истечет';
 
-    function removeEmptyAncestors(element) {
-        let parent = element;
-
-        while (parent && !parent.matches(HEADER_SELECTOR)) {
-            if (parent.children.length > 0 || parent.textContent.trim() !== '') {
-                break;
-            }
-
-            const nextParent = parent.parentElement;
-            parent.remove();
-            parent = nextParent;
-        }
-    }
-
-    function removeExpiryBanners(root = document) {
+    function hideExpiryBanners(root = document) {
         if (!root.querySelectorAll) {
             return;
         }
@@ -42,7 +28,7 @@
             headings.push(root);
         }
 
-        headings.push(...root.querySelectorAll(`${HEADER_SELECTOR} h3`));
+        headings.push(...root.querySelectorAll('h3'));
 
         for (const heading of headings) {
             if (!heading.textContent.includes(TITLE)) {
@@ -55,23 +41,19 @@
                 continue;
             }
 
-            const bannerParent = banner.parentElement;
-            banner.remove();
-
-            if (bannerParent) {
-                removeEmptyAncestors(bannerParent);
-            }
+            // React owns this subtree. Removing its nodes can break later renders.
+            banner.style.setProperty('display', 'none', 'important');
         }
     }
 
     function startObserver() {
-        removeExpiryBanners();
+        hideExpiryBanners();
 
         const observer = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
-                        removeExpiryBanners(node);
+                        hideExpiryBanners(node);
                     }
                 }
             }
