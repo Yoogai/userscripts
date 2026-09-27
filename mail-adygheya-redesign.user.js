@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.36
+// @version      3.1.37
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.36] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.37] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -31,7 +31,8 @@
     listWidth: 'ady-list-width',
     focus: 'ady-focus-mode',
     collapsed: 'ady-sidebar-collapsed',
-    recentRecipients: 'ady-recent-recipients'
+    recentRecipients: 'ady-recent-recipients',
+    pinnedRecipients: 'ady-pinned-recipients'
   };
   const DENSITIES = ['compact', 'normal', 'spacious'];
   const DENSITY_LABELS = { compact: 'плотно', normal: 'обычно', spacious: 'свободно' };
@@ -64,6 +65,10 @@
   };
   let recentRecipients = GM_getValue(KEYS.recentRecipients, []);
   if (!Array.isArray(recentRecipients)) recentRecipients = [];
+  let pinnedRecipients = GM_getValue(KEYS.pinnedRecipients, null);
+  if (!Array.isArray(pinnedRecipients)) {
+    pinnedRecipients = FREQUENT_RECIPIENTS.map(([name, address]) => ({ name, address }));
+  }
 
   let center;
   let left;
@@ -877,6 +882,205 @@
         font-weight: 700;
         letter-spacing: .08em;
         text-transform: uppercase;
+      }
+      html.ady-redesign .ady-recipient-section-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      html.ady-redesign .ady-recipient-edit {
+        padding: 3px 7px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--ady-navy);
+        font: 600 10px/16px 'Inter', sans-serif;
+        letter-spacing: 0;
+        text-transform: none;
+        cursor: pointer;
+      }
+      html.ady-redesign .ady-recipient-edit:hover,
+      html.ady-redesign .ady-recipient-edit:focus-visible {
+        background: var(--ady-blue-soft);
+        outline: none;
+      }
+      html.ady-redesign .ady-recipient-editor-backdrop {
+        position: fixed;
+        z-index: 2147482900;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: rgba(15, 23, 42, .38);
+      }
+      html.ady-redesign .ady-recipient-editor-backdrop.is-open {
+        display: flex !important;
+      }
+      html.ady-redesign .ady-recipient-editor {
+        display: flex;
+        flex-direction: column;
+        width: min(640px, calc(100vw - 48px));
+        max-height: min(760px, calc(100vh - 48px));
+        overflow: hidden;
+        border: 1px solid var(--ady-line-strong);
+        border-radius: 14px;
+        background: var(--ady-paper-strong);
+        color: var(--ady-ink);
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+      }
+      html.ady-redesign .ady-recipient-editor-header,
+      html.ady-redesign .ady-recipient-editor-footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        flex: 0 0 auto;
+      }
+      html.ady-redesign .ady-recipient-editor-header {
+        justify-content: space-between;
+        border-bottom: 1px solid var(--ady-line);
+      }
+      html.ady-redesign .ady-recipient-editor-footer {
+        justify-content: flex-end;
+        border-top: 1px solid var(--ady-line);
+      }
+      html.ady-redesign .ady-recipient-editor-title {
+        margin: 0;
+        font: 700 16px/22px 'Inter', sans-serif;
+      }
+      html.ady-redesign .ady-recipient-editor-close {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--ady-muted);
+        font-size: 22px;
+        line-height: 32px;
+        cursor: pointer;
+      }
+      html.ady-redesign .ady-recipient-editor-close:hover {
+        background: var(--ady-blue-soft);
+        color: var(--ady-ink);
+      }
+      html.ady-redesign .ady-recipient-editor-body {
+        overflow: auto;
+        padding: 16px;
+      }
+      html.ady-redesign .ady-recipient-editor-help {
+        margin: 0 0 14px;
+        color: var(--ady-muted);
+        font: 400 12px/18px 'Inter', sans-serif;
+      }
+      html.ady-redesign .ady-recipient-manual-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      html.ady-redesign .ady-recipient-manual-form input {
+        min-width: 0;
+        height: 36px;
+        padding: 7px 9px;
+        border: 1px solid var(--ady-line-strong);
+        border-radius: 8px;
+        box-sizing: border-box;
+        background: var(--ady-paper-strong);
+        color: var(--ady-ink);
+        font: 400 12px/20px 'Inter', sans-serif;
+        outline: none;
+      }
+      html.ady-redesign .ady-recipient-manual-form input:focus {
+        border-color: var(--ady-navy);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--ady-navy) 16%, transparent);
+      }
+      html.ady-redesign .ady-recipient-editor-button {
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 1px solid var(--ady-line-strong);
+        border-radius: 8px;
+        background: var(--ady-paper-strong);
+        color: var(--ady-ink);
+        font: 600 12px/18px 'Inter', sans-serif;
+        cursor: pointer;
+      }
+      html.ady-redesign .ady-recipient-editor-button:hover {
+        background: var(--ady-blue-soft);
+      }
+      html.ady-redesign .ady-recipient-editor-button.primary {
+        border-color: var(--ady-navy);
+        background: var(--ady-navy);
+        color: #fff;
+      }
+      html.ady-redesign .ady-recipient-editor-button.primary:hover {
+        filter: brightness(.96);
+      }
+      html.ady-redesign .ady-recipient-editor-error {
+        min-height: 16px;
+        margin: 0 0 6px;
+        color: #b42318;
+        font: 500 11px/16px 'Inter', sans-serif;
+      }
+      html.ady-redesign .ady-recipient-editor-group {
+        margin-top: 16px;
+      }
+      html.ady-redesign .ady-recipient-editor-group-title {
+        margin: 0 0 6px;
+        color: var(--ady-muted);
+        font: 700 10px/16px 'Inter', sans-serif;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+      html.ady-redesign .ady-recipient-editor-list {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      html.ady-redesign .ady-recipient-editor-row {
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr);
+        gap: 8px;
+        align-items: start;
+        padding: 8px 9px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      html.ady-redesign .ady-recipient-editor-row:hover {
+        background: var(--ady-blue-soft);
+      }
+      html.ady-redesign .ady-recipient-editor-row input {
+        margin: 3px 0 0;
+      }
+      html.ady-redesign .ady-recipient-editor-row-main {
+        min-width: 0;
+      }
+      html.ady-redesign .ady-recipient-editor-row-name {
+        overflow: hidden;
+        color: var(--ady-ink);
+        font: 600 12px/17px 'Inter', sans-serif;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      html.ady-redesign .ady-recipient-editor-row-address {
+        overflow: hidden;
+        color: var(--ady-muted);
+        font: 400 11px/16px 'Inter', sans-serif;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      html.ady-redesign .ady-recipient-editor-empty {
+        padding: 6px 9px;
+        color: var(--ady-muted);
+        font: 400 11px/16px 'Inter', sans-serif;
+      }
+      @media (max-width: 720px) {
+        html.ady-redesign .ady-recipient-manual-form {
+          grid-template-columns: 1fr;
+        }
       }
       html.ady-redesign #rl-sub-left .btn-group.dropdown ul .e-link.menuitem {
         display: flex !important;
@@ -1865,17 +2069,78 @@
 
   function installRecipientMenu() {
     if (document.querySelector('.ady-recipient-menu')) return;
+
     const menu = document.createElement('div');
     menu.className = 'ady-recipient-menu';
     menu.setAttribute('role', 'listbox');
     document.body.appendChild(menu);
 
-    const pinnedAddresses = new Set(FREQUENT_RECIPIENTS.map(([, address]) => address.toLowerCase()));
+    const editorBackdrop = document.createElement('div');
+    editorBackdrop.className = 'ady-recipient-editor-backdrop';
+    editorBackdrop.innerHTML = `
+      <div class="ady-recipient-editor" role="dialog" aria-modal="true" aria-labelledby="ady-recipient-editor-title">
+        <div class="ady-recipient-editor-header">
+          <h2 class="ady-recipient-editor-title" id="ady-recipient-editor-title">Редактировать адресатов</h2>
+          <button type="button" class="ady-recipient-editor-close" aria-label="Закрыть">×</button>
+        </div>
+        <div class="ady-recipient-editor-body">
+          <p class="ady-recipient-editor-help">Отметьте адреса, которые должны показываться в блоке «Закреплённые». Можно использовать предустановленные, часто используемые и свои адреса.</p>
+          <form class="ady-recipient-manual-form">
+            <input type="text" class="ady-recipient-manual-name" placeholder="Название или имя">
+            <input type="email" class="ady-recipient-manual-address" placeholder="email@example.ru" required>
+            <button type="submit" class="ady-recipient-editor-button">Добавить</button>
+          </form>
+          <div class="ady-recipient-editor-error" role="status" aria-live="polite"></div>
+          <div class="ady-recipient-editor-lists"></div>
+        </div>
+        <div class="ady-recipient-editor-footer">
+          <button type="button" class="ady-recipient-editor-button ady-recipient-editor-cancel">Отмена</button>
+          <button type="button" class="ady-recipient-editor-button primary ady-recipient-editor-save">Сохранить</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(editorBackdrop);
+
+    const editor = editorBackdrop.querySelector('.ady-recipient-editor');
+    const editorLists = editorBackdrop.querySelector('.ady-recipient-editor-lists');
+    const editorError = editorBackdrop.querySelector('.ady-recipient-editor-error');
+    const manualForm = editorBackdrop.querySelector('.ady-recipient-manual-form');
+    const manualName = editorBackdrop.querySelector('.ady-recipient-manual-name');
+    const manualAddress = editorBackdrop.querySelector('.ady-recipient-manual-address');
+
     const emailPattern = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
+    const emailExactPattern = /^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/;
     const cleanName = (value) => (value || '').replace(/[<>\"]/g, '').trim();
     const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     })[char]);
+
+    const normalizePinnedRecipients = () => {
+      const seen = new Set();
+      pinnedRecipients = (Array.isArray(pinnedRecipients) ? pinnedRecipients : [])
+        .map((entry) => {
+          const name = Array.isArray(entry) ? entry[0] : entry?.name;
+          const address = Array.isArray(entry) ? entry[1] : (typeof entry === 'string' ? entry : entry?.address);
+          return { name: cleanName(name), address: String(address || '').trim() };
+        })
+        .filter((entry) => {
+          if (!emailExactPattern.test(entry.address)) return false;
+          const key = entry.address.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      GM_setValue(KEYS.pinnedRecipients, pinnedRecipients);
+    };
+
+    const savePinnedRecipients = () => {
+      normalizePinnedRecipients();
+      GM_setValue(KEYS.pinnedRecipients, pinnedRecipients);
+    };
+
+    const getPinnedAddresses = () => new Set(
+      pinnedRecipients.map((entry) => entry.address.toLowerCase())
+    );
 
     const normalizeStoredRecipients = () => {
       const now = Date.now();
@@ -1890,7 +2155,7 @@
         }))
         .filter((entry) => {
           const key = entry.address.toLowerCase();
-          if (seen.has(key) || pinnedAddresses.has(key)) return false;
+          if (seen.has(key)) return false;
           seen.add(key);
           return true;
         })
@@ -1908,7 +2173,6 @@
       const normalizedAddress = (address || '').trim();
       if (!emailPattern.test(normalizedAddress)) return false;
       const key = normalizedAddress.toLowerCase();
-      if (pinnedAddresses.has(key)) return false;
 
       const normalizedName = cleanName(name);
       const existing = recentRecipients.find((entry) => entry.address.toLowerCase() === key);
@@ -1956,11 +2220,6 @@
 
     const rememberStockSuggestions = () => {
       let changed = false;
-
-      // Read each stock RainLoop suggestion only once. The same address can be
-      // represented by a <li> plus nested helper nodes with slightly different
-      // text. Writing those variants back one after another can make the stored
-      // name oscillate and, together with MutationObserver, cause a render loop.
       const suggestions = new Map();
       document.querySelectorAll('.ui-autocomplete li').forEach((node) => {
         const recipient = recipientFromNode(node);
@@ -1992,9 +2251,12 @@
       return changed;
     };
 
+    normalizePinnedRecipients();
     normalizeStoredRecipients();
 
     let activeInput = null;
+    let editorDraft = new Map();
+
     const getInput = () => {
       if (activeInput?.isConnected && activeInput.getClientRects().length) return activeInput;
       return [...document.querySelectorAll('input.ui-autocomplete-input')].find((item) => item.getClientRects().length) || null;
@@ -2009,16 +2271,19 @@
       const query = input.value.trim().toLocaleLowerCase('ru');
       const added = new Set([...input.closest('.inputosaurus-container')?.querySelectorAll('li:not(.inputosaurus-input)') || []]
         .flatMap((item) => (item.textContent.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g) || []).map((address) => address.toLowerCase())));
-      const matches = ([name, address]) => !added.has(address.toLowerCase()) && (!query || `${name} ${address}`.toLocaleLowerCase('ru').includes(query));
-      const primary = FREQUENT_RECIPIENTS.filter(matches);
+      const pinnedAddressSet = getPinnedAddresses();
+      const matches = (entry) => !added.has(entry.address.toLowerCase()) && (!query || `${entry.name || ''} ${entry.address}`.toLocaleLowerCase('ru').includes(query));
+      const primary = pinnedRecipients.filter(matches);
       const recent = recentRecipients
-        .filter((entry) => entry?.address && !added.has(entry.address.toLowerCase()) && !pinnedAddresses.has(entry.address.toLowerCase()))
+        .filter((entry) => entry?.address && !added.has(entry.address.toLowerCase()) && !pinnedAddressSet.has(entry.address.toLowerCase()))
         .filter((entry) => !query || `${entry.name || ''} ${entry.address}`.toLocaleLowerCase('ru').includes(query))
         .sort((a, b) => (Number(b.uses) || 0) - (Number(a.uses) || 0) || (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0))
         .slice(0, 20);
-      const button = ([name, address]) => `<button type="button" class="ady-recipient-item" role="option" data-address="${escapeHtml(address)}"><span class="ady-recipient-name">${escapeHtml(name || address)}</span><span class="ady-recipient-address">${escapeHtml(address)}</span></button>`;
-      menu.innerHTML = `${primary.length ? '<div class="ady-recipient-section">Закреплённые</div>' : ''}${primary.map(button).join('')}${recent.length ? '<div class="ady-recipient-section">Часто используемые</div>' : ''}${recent.map(({name, address}) => button([name, address])).join('')}`;
-      return primary.length + recent.length > 0;
+
+      const button = ({ name, address }) => `<button type="button" class="ady-recipient-item" role="option" data-address="${escapeHtml(address)}"><span class="ady-recipient-name">${escapeHtml(name || address)}</span><span class="ady-recipient-address">${escapeHtml(address)}</span></button>`;
+      const pinnedHeader = '<div class="ady-recipient-section ady-recipient-section-row"><span>Закреплённые</span><button type="button" class="ady-recipient-edit">Редактировать</button></div>';
+      menu.innerHTML = `${pinnedHeader}${primary.map(button).join('')}${recent.length ? '<div class="ady-recipient-section">Часто используемые</div>' : ''}${recent.map(button).join('')}`;
+      return true;
     };
 
     const place = () => {
@@ -2037,11 +2302,99 @@
       else menu.classList.remove('is-open');
     };
 
+    const buildEditorDraft = () => {
+      const selected = getPinnedAddresses();
+      const draft = new Map();
+
+      const add = (name, address, source) => {
+        const normalizedAddress = String(address || '').trim();
+        if (!emailExactPattern.test(normalizedAddress)) return;
+        const key = normalizedAddress.toLowerCase();
+        const existing = draft.get(key);
+        if (existing) {
+          if (!existing.name && name) existing.name = cleanName(name);
+          if (selected.has(key)) existing.checked = true;
+          return;
+        }
+        draft.set(key, {
+          name: cleanName(name) || normalizedAddress,
+          address: normalizedAddress,
+          source,
+          checked: selected.has(key)
+        });
+      };
+
+      FREQUENT_RECIPIENTS.forEach(([name, address]) => add(name, address, 'default'));
+      recentRecipients
+        .slice()
+        .sort((a, b) => (Number(b.uses) || 0) - (Number(a.uses) || 0) || (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0))
+        .forEach((entry) => add(entry.name, entry.address, 'recent'));
+      pinnedRecipients.forEach((entry) => {
+        const key = entry.address.toLowerCase();
+        if (draft.has(key)) {
+          draft.get(key).checked = true;
+          if (entry.name) draft.get(key).name = entry.name;
+        } else {
+          add(entry.name, entry.address, 'custom');
+          draft.get(key).checked = true;
+        }
+      });
+
+      editorDraft = draft;
+    };
+
+    const renderEditor = () => {
+      const groups = [
+        ['Предустановленные', 'default'],
+        ['Свои адреса', 'custom'],
+        ['Часто используемые', 'recent']
+      ];
+
+      const row = (entry) => `
+        <label class="ady-recipient-editor-row">
+          <input type="checkbox" data-address="${escapeHtml(entry.address)}" ${entry.checked ? 'checked' : ''}>
+          <span class="ady-recipient-editor-row-main">
+            <span class="ady-recipient-editor-row-name">${escapeHtml(entry.name || entry.address)}</span>
+            <span class="ady-recipient-editor-row-address">${escapeHtml(entry.address)}</span>
+          </span>
+        </label>
+      `;
+
+      editorLists.innerHTML = groups.map(([title, source]) => {
+        const entries = [...editorDraft.values()].filter((entry) => entry.source === source);
+        if (!entries.length && source === 'custom') return '';
+        return `
+          <section class="ady-recipient-editor-group">
+            <h3 class="ady-recipient-editor-group-title">${title}</h3>
+            <div class="ady-recipient-editor-list">
+              ${entries.length ? entries.map(row).join('') : '<div class="ady-recipient-editor-empty">Пока нет адресов.</div>'}
+            </div>
+          </section>
+        `;
+      }).join('');
+    };
+
+    const openEditor = () => {
+      rememberStockSuggestions();
+      rememberChosenRecipients();
+      buildEditorDraft();
+      renderEditor();
+      editorError.textContent = '';
+      manualName.value = '';
+      manualAddress.value = '';
+      menu.classList.remove('is-open');
+      editorBackdrop.classList.add('is-open');
+      window.setTimeout(() => manualName.focus(), 0);
+    };
+
+    const closeEditor = () => {
+      editorBackdrop.classList.remove('is-open');
+      editorError.textContent = '';
+    };
+
     let stockObserverScheduled = false;
     const stockObserver = new MutationObserver((mutations) => {
-      // Our own menu is rebuilt with innerHTML. Never react to those mutations:
-      // otherwise the observer can recursively trigger render() and freeze the UI.
-      const externalMutation = mutations.some((mutation) => !menu.contains(mutation.target));
+      const externalMutation = mutations.some((mutation) => !menu.contains(mutation.target) && !editorBackdrop.contains(mutation.target));
       if (!externalMutation || stockObserverScheduled) return;
 
       stockObserverScheduled = true;
@@ -2055,15 +2408,19 @@
 
     document.addEventListener('focusin', (event) => {
       const input = event.target.closest?.('input.ui-autocomplete-input');
-      if (input && input.getClientRects().length) open(input);
+      if (input && input.getClientRects().length && !editorBackdrop.classList.contains('is-open')) open(input);
     });
     document.addEventListener('input', (event) => {
       const input = event.target.closest?.('input.ui-autocomplete-input');
-      if (input && input.getClientRects().length) open(input);
+      if (input && input.getClientRects().length && !editorBackdrop.classList.contains('is-open')) open(input);
     });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
-        menu.classList.remove('is-open');
+        if (editorBackdrop.classList.contains('is-open')) {
+          closeEditor();
+        } else {
+          menu.classList.remove('is-open');
+        }
         return;
       }
       const input = event.target.closest?.('input.ui-autocomplete-input');
@@ -2073,6 +2430,14 @@
     });
 
     menu.addEventListener('mousedown', (event) => {
+      const editButton = event.target.closest('.ady-recipient-edit');
+      if (editButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        openEditor();
+        return;
+      }
+
       const item = event.target.closest('.ady-recipient-item');
       if (!item) return;
       event.preventDefault();
@@ -2087,9 +2452,6 @@
       activeInput = input;
       input.focus();
 
-      // Add the exact address through RainLoop/Inputosaurus itself. Synthetic
-      // Enter used to be intercepted by the hidden jQuery UI autocomplete,
-      // which could insert whichever stock suggestion was currently active.
       const container = input.closest('.inputosaurus-container');
       const originalInput = container?.querySelector('.inputosaurus-input-hidden input');
       const jq = window.jQuery || window.$;
@@ -2105,8 +2467,6 @@
         }
       }
 
-      // Fallback for older RainLoop builds: use a delimiter instead of Enter so
-      // the stock autocomplete cannot select an unrelated active suggestion.
       if (!parsed) {
         input.value = `${address};`;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2128,10 +2488,70 @@
       }, 80);
     });
 
+    editorLists.addEventListener('change', (event) => {
+      const checkbox = event.target.closest('input[type="checkbox"][data-address]');
+      if (!checkbox) return;
+      const entry = editorDraft.get(checkbox.dataset.address.toLowerCase());
+      if (entry) entry.checked = checkbox.checked;
+    });
+
+    manualForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const address = manualAddress.value.trim();
+      const name = cleanName(manualName.value);
+
+      if (!emailExactPattern.test(address)) {
+        editorError.textContent = 'Введите корректный email.';
+        manualAddress.focus();
+        return;
+      }
+
+      const key = address.toLowerCase();
+      const existing = editorDraft.get(key);
+      if (existing) {
+        existing.checked = true;
+        if (name) existing.name = name;
+      } else {
+        editorDraft.set(key, {
+          name: name || address,
+          address,
+          source: 'custom',
+          checked: true
+        });
+      }
+
+      editorError.textContent = '';
+      manualName.value = '';
+      manualAddress.value = '';
+      renderEditor();
+      manualName.focus();
+    });
+
+    editorBackdrop.querySelector('.ady-recipient-editor-save').addEventListener('click', () => {
+      pinnedRecipients = [...editorDraft.values()]
+        .filter((entry) => entry.checked)
+        .map((entry) => ({ name: entry.name, address: entry.address }));
+      savePinnedRecipients();
+      closeEditor();
+      if (getInput()) {
+        place();
+        render();
+        menu.classList.add('is-open');
+      }
+    });
+
+    editorBackdrop.querySelector('.ady-recipient-editor-cancel').addEventListener('click', closeEditor);
+    editorBackdrop.querySelector('.ady-recipient-editor-close').addEventListener('click', closeEditor);
+    editorBackdrop.addEventListener('mousedown', (event) => {
+      if (event.target === editorBackdrop) closeEditor();
+    });
+
     document.addEventListener('click', (event) => {
       const input = getInput();
       const region = input?.closest('.inputosaurus-container');
-      if (event.target !== input && !menu.contains(event.target) && !region?.contains(event.target)) menu.classList.remove('is-open');
+      if (event.target !== input && !menu.contains(event.target) && !region?.contains(event.target) && !editor?.contains(event.target)) {
+        menu.classList.remove('is-open');
+      }
     });
     window.addEventListener('resize', () => { if (menu.classList.contains('is-open')) place(); });
   }
