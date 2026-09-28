@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.41
+// @version      3.1.42
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.41] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.42] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -32,7 +32,8 @@
     focus: 'ady-focus-mode',
     collapsed: 'ady-sidebar-collapsed',
     recentRecipients: 'ady-recent-recipients',
-    pinnedRecipients: 'ady-pinned-recipients'
+    pinnedRecipients: 'ady-pinned-recipients',
+    availableRecipients: 'ady-available-recipients'
   };
   const DENSITIES = ['compact', 'normal', 'spacious'];
   const DENSITY_LABELS = { compact: 'плотно', normal: 'обычно', spacious: 'свободно' };
@@ -69,6 +70,8 @@
   if (!Array.isArray(pinnedRecipients)) {
     pinnedRecipients = FREQUENT_RECIPIENTS.map(([name, address]) => ({ name, address }));
   }
+  let availableRecipients = GM_getValue(KEYS.availableRecipients, []);
+  if (!Array.isArray(availableRecipients)) availableRecipients = [];
 
   let center;
   let left;
@@ -975,6 +978,65 @@
         margin: 0 0 14px;
         color: var(--ady-muted);
         font: 400 12px/18px 'Inter', sans-serif;
+      }
+      html.ady-redesign .ady-recipient-search {
+        position: relative;
+        margin: 0 0 12px;
+      }
+      html.ady-redesign .ady-recipient-search svg {
+        position: absolute;
+        top: 50%;
+        left: 10px;
+        width: 15px;
+        height: 15px;
+        transform: translateY(-50%);
+        fill: none;
+        stroke: var(--ady-muted);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        pointer-events: none;
+      }
+      html.ady-redesign .ady-recipient-search input {
+        width: 100%;
+        height: 36px;
+        padding: 7px 34px 7px 34px;
+        border: 1px solid var(--ady-line-strong);
+        border-radius: 9px;
+        box-sizing: border-box;
+        background: var(--ady-paper-strong);
+        color: var(--ady-ink);
+        font: 400 12px/20px 'Inter', sans-serif;
+        outline: none;
+      }
+      html.ady-redesign .ady-recipient-search input:focus {
+        border-color: var(--ady-navy);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--ady-navy) 14%, transparent);
+      }
+      html.ady-redesign .ady-recipient-search-clear {
+        position: absolute;
+        top: 50%;
+        right: 6px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 6px;
+        transform: translateY(-50%);
+        background: transparent;
+        color: var(--ady-muted);
+        font: 500 18px/1 'Inter', sans-serif;
+        cursor: pointer;
+      }
+      html.ady-redesign .ady-recipient-search.has-value .ady-recipient-search-clear {
+        display: inline-flex;
+      }
+      html.ady-redesign .ady-recipient-search-clear:hover {
+        background: color-mix(in srgb, var(--ady-ink) 8%, var(--ady-paper-strong));
+        color: var(--ady-ink);
       }
       html.ady-redesign .ady-recipient-manual-form {
         display: grid;
@@ -2235,7 +2297,12 @@
           <button type="button" class="ady-recipient-editor-close" aria-label="Закрыть">×</button>
         </div>
         <div class="ady-recipient-editor-body">
-          <p class="ady-recipient-editor-help">Отметьте адреса, которые должны показываться в блоке «Закреплённые». Можно использовать предустановленные, часто используемые и свои адреса.</p>
+          <p class="ady-recipient-editor-help">Отметьте адреса, которые должны показываться в блоке «Закреплённые». Поиск работает одновременно по названию и email.</p>
+          <div class="ady-recipient-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" class="ady-recipient-search-input" placeholder="Поиск по названию или email" autocomplete="off">
+            <button type="button" class="ady-recipient-search-clear" aria-label="Очистить поиск" title="Очистить">×</button>
+          </div>
           <form class="ady-recipient-manual-form">
             <input type="text" class="ady-recipient-manual-name" placeholder="Название или имя">
             <input type="email" class="ady-recipient-manual-address" placeholder="email@example.ru" required>
@@ -2258,6 +2325,9 @@
     const manualForm = editorBackdrop.querySelector('.ady-recipient-manual-form');
     const manualName = editorBackdrop.querySelector('.ady-recipient-manual-name');
     const manualAddress = editorBackdrop.querySelector('.ady-recipient-manual-address');
+    const editorSearchWrap = editorBackdrop.querySelector('.ady-recipient-search');
+    const editorSearch = editorBackdrop.querySelector('.ady-recipient-search-input');
+    const editorSearchClear = editorBackdrop.querySelector('.ady-recipient-search-clear');
 
     const emailPattern = /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/;
     const emailExactPattern = /^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/;
@@ -2292,6 +2362,63 @@
     const getPinnedAddresses = () => new Set(
       pinnedRecipients.map((entry) => entry.address.toLowerCase())
     );
+
+    const normalizeAvailableRecipients = () => {
+      const seen = new Set();
+      availableRecipients = (Array.isArray(availableRecipients) ? availableRecipients : [])
+        .map((entry) => ({
+          name: cleanName(entry?.name),
+          address: String(entry?.address || '').trim()
+        }))
+        .filter((entry) => {
+          if (!emailExactPattern.test(entry.address)) return false;
+          const key = entry.address.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, 1000);
+      GM_setValue(KEYS.availableRecipients, availableRecipients);
+    };
+
+    const saveAvailableRecipients = () => {
+      normalizeAvailableRecipients();
+      GM_setValue(KEYS.availableRecipients, availableRecipients);
+    };
+
+    const rememberAvailableRecipient = (name, address) => {
+      const normalizedAddress = String(address || '').trim();
+      if (!emailExactPattern.test(normalizedAddress)) return false;
+      const key = normalizedAddress.toLowerCase();
+      const normalizedName = cleanName(name);
+      const existing = availableRecipients.find((entry) => entry.address.toLowerCase() === key);
+      if (existing) {
+        const existingIsAddress = !existing.name || existing.name.toLowerCase() === existing.address.toLowerCase();
+        if (normalizedName && normalizedName.toLowerCase() !== normalizedAddress.toLowerCase() && (existingIsAddress || normalizedName !== existing.name)) {
+          existing.name = normalizedName;
+          return true;
+        }
+        return false;
+      }
+      availableRecipients.push({
+        name: normalizedName && normalizedName.toLowerCase() !== normalizedAddress.toLowerCase() ? normalizedName : '',
+        address: normalizedAddress
+      });
+      return true;
+    };
+
+    const collectAvailableContactsFromDom = () => {
+      let changed = false;
+      document.querySelectorAll('.e-contact-item .listName').forEach((node) => {
+        const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+        const address = text.match(emailPattern)?.[0];
+        if (!address) return;
+        const name = cleanName(text.replace(address, '').replace(/[()\[\]«»]/g, ' '));
+        if (rememberAvailableRecipient(name, address)) changed = true;
+      });
+      if (changed) saveAvailableRecipients();
+      return changed;
+    };
 
     const normalizeStoredRecipients = () => {
       const now = Date.now();
@@ -2404,12 +2531,15 @@
 
     normalizePinnedRecipients();
     normalizeStoredRecipients();
+    normalizeAvailableRecipients();
+    collectAvailableContactsFromDom();
 
     let activeInput = null;
     let editorDraft = new Map();
     let editorPinnedOrder = [];
     let draggedPinnedKey = '';
     let editingPinnedKey = '';
+    let editorSearchQuery = '';
 
     const getInput = () => {
       if (activeInput?.isConnected && activeInput.getClientRects().length) return activeInput;
@@ -2464,32 +2594,44 @@
         const normalizedAddress = String(address || '').trim();
         if (!emailExactPattern.test(normalizedAddress)) return;
         const key = normalizedAddress.toLowerCase();
+        const normalizedName = cleanName(name);
         const existing = draft.get(key);
         if (existing) {
-          if (!existing.name && name) existing.name = cleanName(name);
+          const existingIsAddress = !existing.name || existing.name.toLowerCase() === existing.address.toLowerCase();
+          if (normalizedName && normalizedName.toLowerCase() !== normalizedAddress.toLowerCase() && existingIsAddress) {
+            existing.name = normalizedName;
+          }
+          if (source === 'recent') existing.source = 'recent';
           if (selected.has(key)) existing.checked = true;
           return;
         }
         draft.set(key, {
-          name: cleanName(name) || normalizedAddress,
+          name: normalizedName || normalizedAddress,
           address: normalizedAddress,
           source,
           checked: selected.has(key)
         });
       };
 
-      FREQUENT_RECIPIENTS.forEach(([name, address]) => add(name, address, 'default'));
       recentRecipients
         .slice()
         .sort((a, b) => (Number(b.uses) || 0) - (Number(a.uses) || 0) || (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0))
         .forEach((entry) => add(entry.name, entry.address, 'recent'));
+
+      availableRecipients.forEach((entry) => add(entry.name, entry.address, 'available'));
+
+      // Keep the historical built-in addresses available for users who have not
+      // yet opened RainLoop's Contacts view, but the live address book is now the
+      // primary source for the "Доступные контакты" section.
+      FREQUENT_RECIPIENTS.forEach(([name, address]) => add(name, address, 'available'));
+
       pinnedRecipients.forEach((entry) => {
         const key = entry.address.toLowerCase();
         if (draft.has(key)) {
           draft.get(key).checked = true;
           if (entry.name) draft.get(key).name = entry.name;
         } else {
-          add(entry.name, entry.address, 'custom');
+          add(entry.name, entry.address, 'available');
           draft.get(key).checked = true;
         }
       });
@@ -2513,12 +2655,24 @@
     };
 
     const renderEditor = () => {
+      const query = editorSearchQuery.trim().toLocaleLowerCase('ru');
+      const matchesSearch = (entry) => !query || `${entry.name || ''} ${entry.address || ''}`.toLocaleLowerCase('ru').includes(query);
+
       const pinnedEntries = editorPinnedOrder
         .map((key) => editorDraft.get(key))
-        .filter((entry) => entry?.checked);
-      const availableDefault = [...editorDraft.values()].filter((entry) => entry.source === 'default' && !entry.checked);
-      const availableCustom = [...editorDraft.values()].filter((entry) => entry.source === 'custom' && !entry.checked);
-      const availableRecent = [...editorDraft.values()].filter((entry) => entry.source === 'recent' && !entry.checked);
+        .filter((entry) => entry?.checked && matchesSearch(entry));
+
+      const availableRecent = [...editorDraft.values()]
+        .filter((entry) => entry.source === 'recent' && !entry.checked && matchesSearch(entry))
+        .sort((a, b) => {
+          const aa = recentRecipients.find((item) => item.address.toLowerCase() === a.address.toLowerCase());
+          const bb = recentRecipients.find((item) => item.address.toLowerCase() === b.address.toLowerCase());
+          return (Number(bb?.uses) || 0) - (Number(aa?.uses) || 0) || (Number(bb?.lastUsed) || 0) - (Number(aa?.lastUsed) || 0);
+        });
+
+      const availableContacts = [...editorDraft.values()]
+        .filter((entry) => entry.source !== 'recent' && !entry.checked && matchesSearch(entry))
+        .sort((a, b) => (a.name || a.address).localeCompare(b.name || b.address, 'ru', { sensitivity: 'base' }));
 
       const pinnedRow = (entry, index) => {
         const key = entry.address.toLowerCase();
@@ -2548,8 +2702,8 @@
                 <button type="button" class="ady-recipient-contact-cancel" data-address="${escapeHtml(entry.address)}" title="Отмена" aria-label="Отменить редактирование">${cancelIcon}</button>
               ` : `
                 <button type="button" class="ady-recipient-contact-edit" data-address="${escapeHtml(entry.address)}" title="Редактировать контакт" aria-label="Редактировать контакт">${editIcon}</button>
-                <button type="button" class="ady-recipient-move" data-direction="-1" data-address="${escapeHtml(entry.address)}" title="Выше" aria-label="Переместить выше" ${index === 0 ? 'disabled' : ''}>↑</button>
-                <button type="button" class="ady-recipient-move" data-direction="1" data-address="${escapeHtml(entry.address)}" title="Ниже" aria-label="Переместить ниже" ${index === pinnedEntries.length - 1 ? 'disabled' : ''}>↓</button>
+                <button type="button" class="ady-recipient-move" data-direction="-1" data-address="${escapeHtml(entry.address)}" title="Выше" aria-label="Переместить выше" ${editorPinnedOrder.indexOf(key) === 0 ? 'disabled' : ''}>↑</button>
+                <button type="button" class="ady-recipient-move" data-direction="1" data-address="${escapeHtml(entry.address)}" title="Ниже" aria-label="Переместить ниже" ${editorPinnedOrder.indexOf(key) === editorPinnedOrder.length - 1 ? 'disabled' : ''}>↓</button>
               `}
             </span>
           </div>
@@ -2575,31 +2729,36 @@
         </section>
       `;
 
+      const totalMatches = pinnedEntries.length + availableRecent.length + availableContacts.length;
       editorLists.innerHTML = `
+        ${query && totalMatches === 0 ? '<div class="ady-recipient-editor-empty">Ничего не найдено.</div>' : ''}
         <section class="ady-recipient-editor-group">
           <h3 class="ady-recipient-editor-group-title">Закреплённые</h3>
           <div class="ady-recipient-editor-list ady-recipient-pinned-list">
             ${pinnedEntries.length ? pinnedEntries.map(pinnedRow).join('') : '<div class="ady-recipient-editor-empty">Нет закреплённых адресов.</div>'}
           </div>
         </section>
-        ${group('Доступные контакты', availableDefault)}
-        ${availableCustom.length ? group('Свои адреса', availableCustom) : ''}
         ${group('Часто используемые', availableRecent)}
+        ${group('Доступные контакты', availableContacts, 'Откройте штатный раздел «Контакты», чтобы скрипт собрал адресную книгу.')}
       `;
     };
 
     const openEditor = () => {
       rememberStockSuggestions();
       rememberChosenRecipients();
+      collectAvailableContactsFromDom();
       buildEditorDraft();
       editingPinnedKey = '';
+      editorSearchQuery = '';
+      editorSearch.value = '';
+      editorSearchWrap.classList.remove('has-value');
       renderEditor();
       editorError.textContent = '';
       manualName.value = '';
       manualAddress.value = '';
       menu.classList.remove('is-open');
       editorBackdrop.classList.add('is-open');
-      window.setTimeout(() => manualName.focus(), 0);
+      window.setTimeout(() => editorSearch.focus(), 0);
     };
 
     const closeEditor = () => {
@@ -2617,7 +2776,12 @@
       requestAnimationFrame(() => {
         stockObserverScheduled = false;
         const changed = rememberStockSuggestions() || rememberChosenRecipients();
+        const contactsChanged = collectAvailableContactsFromDom();
         if (changed && menu.classList.contains('is-open')) render();
+        if (contactsChanged && editorBackdrop.classList.contains('is-open')) {
+          buildEditorDraft();
+          renderEditor();
+        }
       });
     });
     stockObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -2791,7 +2955,7 @@
           ...current,
           name: name || address,
           address,
-          source: newKey === oldKey ? current.source : 'custom',
+          source: newKey === oldKey ? current.source : 'available',
           checked: true
         };
 
@@ -2871,6 +3035,22 @@
       renderEditor();
     });
 
+    editorSearch.addEventListener('input', () => {
+      editorSearchQuery = editorSearch.value.trim();
+      editorSearchWrap.classList.toggle('has-value', Boolean(editorSearchQuery));
+      editingPinnedKey = '';
+      renderEditor();
+    });
+
+    editorSearchClear.addEventListener('click', () => {
+      editorSearch.value = '';
+      editorSearchQuery = '';
+      editorSearchWrap.classList.remove('has-value');
+      editingPinnedKey = '';
+      renderEditor();
+      editorSearch.focus();
+    });
+
     manualForm.addEventListener('submit', (event) => {
       event.preventDefault();
       const address = manualAddress.value.trim();
@@ -2891,7 +3071,7 @@
         editorDraft.set(key, {
           name: name || address,
           address,
-          source: 'custom',
+          source: 'available',
           checked: true
         });
       }
