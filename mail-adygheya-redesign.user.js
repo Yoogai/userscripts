@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.42
+// @version      3.1.43
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -11,12 +11,13 @@
 // @run-at       document-idle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.42] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.43] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1037,6 +1038,9 @@
       html.ady-redesign .ady-recipient-search-clear:hover {
         background: color-mix(in srgb, var(--ady-ink) 8%, var(--ady-paper-strong));
         color: var(--ady-ink);
+      }
+      html.ady-contact-scan .b-contacts-content .e-contact-foreach {
+        visibility: hidden !important;
       }
       html.ady-redesign .ady-recipient-manual-form {
         display: grid;
@@ -2377,7 +2381,7 @@
           seen.add(key);
           return true;
         })
-        .slice(0, 1000);
+        .slice(0, 10000);
       GM_setValue(KEYS.availableRecipients, availableRecipients);
     };
 
@@ -2418,6 +2422,150 @@
       });
       if (changed) saveAvailableRecipients();
       return changed;
+    };
+
+
+    const collectAvailableContactsFromAjax = (data) => {
+      const list = data?.Result?.List;
+      if (!Array.isArray(list)) return false;
+
+      let changed = false;
+      for (const item of list) {
+        if (!item || item['@Object'] !== 'Object/Contact') continue;
+
+        let fullName = '';
+        let firstName = '';
+        let lastName = '';
+        const emails = [];
+
+        for (const property of (Array.isArray(item.Properties) ? item.Properties : [])) {
+          const type = Number(property?.Type);
+          const value = String(property?.Value || '').trim();
+          if (!value) continue;
+
+          if (type === 10) fullName = value;
+          else if (type === 15) firstName = value;
+          else if (type === 16) lastName = value;
+          else if (type === 30 && emailExactPattern.test(value)) emails.push(value);
+        }
+
+        let name = cleanName(fullName || [firstName, lastName].filter(Boolean).join(' '));
+        const display = cleanName(item.Display);
+        if (!name && display && !emailExactPattern.test(display)) {
+          name = display.replace(emailPattern, '').replace(/[<>()[\]«»]/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        for (const address of emails) {
+          if (rememberAvailableRecipient(name, address)) changed = true;
+        }
+      }
+
+      if (changed) saveAvailableRecipients();
+      return changed;
+    };
+
+    const pageWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+    let rainLoopContactsHooksInstalled = false;
+    let fullContactsRequestPending = false;
+    let fullContactsRestorePending = false;
+    let fullContactsExpectedCount = 0;
+    let fullContactsScanDoneCount = 0;
+    let fullContactsKickTimer = 0;
+
+    const visibleContactsPopup = () => [...document.querySelectorAll('.b-contacts-content')]
+      .find((popup) => popup.getClientRects().length && getComputedStyle(popup).display !== 'none') || null;
+
+    const currentContactsPageLink = () => visibleContactsPopup()?.querySelector('.e-pagenator .e-page.current') || null;
+
+    const requestFullContactsScan = (count) => {
+      if (!rainLoopContactsHooksInstalled || fullContactsRequestPending || fullContactsRestorePending) return;
+      const currentPage = currentContactsPageLink();
+      if (!currentPage) return;
+
+      fullContactsExpectedCount = Math.max(1, Number(count) || 0);
+      fullContactsRequestPending = true;
+      document.documentElement.classList.add('ady-contact-scan');
+
+      clearTimeout(fullContactsKickTimer);
+      fullContactsKickTimer = window.setTimeout(() => {
+        const freshCurrentPage = currentContactsPageLink();
+        if (!freshCurrentPage) {
+          fullContactsRequestPending = false;
+          document.documentElement.classList.remove('ady-contact-scan');
+          return;
+        }
+        freshCurrentPage.click();
+      }, 80);
+    };
+
+    const installRainLoopContactsHooks = () => {
+      if (rainLoopContactsHooksInstalled) return true;
+      const rl = pageWindow?.rl;
+      if (!rl || typeof rl.addHook !== 'function') return false;
+
+      rl.addHook('ajax-default-request', (action, parameters) => {
+        if (action !== 'Contacts' || !fullContactsRequestPending || !parameters) return;
+        if (String(parameters.Search || '') !== '') return;
+
+        parameters.Offset = 0;
+        parameters.Limit = Math.max(fullContactsExpectedCount, 5000);
+      });
+
+      rl.addHook('ajax-default-response', (action, data, _type, _cached, parameters) => {
+        if (action !== 'Contacts' || !data?.Result) return;
+
+        const contactsChanged = collectAvailableContactsFromAjax(data);
+        const count = Math.max(0, Number(data.Result.Count) || 0);
+        const offset = Math.max(0, Number(parameters?.Offset) || 0);
+        const limit = Math.max(0, Number(parameters?.Limit) || 0);
+        const search = String(parameters?.Search || '');
+
+        if (contactsChanged && editorBackdrop.classList.contains('is-open')) {
+          buildEditorDraft();
+          renderEditor();
+        }
+
+        const isFullScanResponse = fullContactsRequestPending &&
+          search === '' &&
+          offset === 0 &&
+          limit >= Math.max(fullContactsExpectedCount, 5000);
+
+        if (isFullScanResponse) {
+          fullContactsRequestPending = false;
+          fullContactsScanDoneCount = Math.max(fullContactsScanDoneCount, count);
+          fullContactsRestorePending = true;
+
+          window.setTimeout(() => {
+            const currentPage = currentContactsPageLink();
+            if (currentPage) {
+              currentPage.click();
+            } else {
+              fullContactsRestorePending = false;
+              document.documentElement.classList.remove('ady-contact-scan');
+            }
+          }, 80);
+          return;
+        }
+
+        if (fullContactsRestorePending) {
+          fullContactsRestorePending = false;
+          document.documentElement.classList.remove('ady-contact-scan');
+          return;
+        }
+
+        if (
+          search === '' &&
+          offset === 0 &&
+          count > 0 &&
+          count > fullContactsScanDoneCount &&
+          !fullContactsRequestPending
+        ) {
+          requestFullContactsScan(count);
+        }
+      });
+
+      rainLoopContactsHooksInstalled = true;
+      return true;
     };
 
     const normalizeStoredRecipients = () => {
@@ -2533,6 +2681,7 @@
     normalizeStoredRecipients();
     normalizeAvailableRecipients();
     collectAvailableContactsFromDom();
+    installRainLoopContactsHooks();
 
     let activeInput = null;
     let editorDraft = new Map();
