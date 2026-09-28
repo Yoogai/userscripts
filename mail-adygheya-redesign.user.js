@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.39
+// @version      3.1.40
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.39] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.40] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1114,7 +1114,10 @@
         align-items: center;
         gap: 3px;
       }
-      html.ady-redesign .ady-recipient-move {
+      html.ady-redesign .ady-recipient-move,
+      html.ady-redesign .ady-recipient-contact-edit,
+      html.ady-redesign .ady-recipient-contact-save,
+      html.ady-redesign .ady-recipient-contact-cancel {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -1128,7 +1131,10 @@
         font: 600 14px/1 'Inter', sans-serif;
         cursor: pointer;
       }
-      html.ady-redesign .ady-recipient-move:hover:not(:disabled) {
+      html.ady-redesign .ady-recipient-move:hover:not(:disabled),
+      html.ady-redesign .ady-recipient-contact-edit:hover,
+      html.ady-redesign .ady-recipient-contact-save:hover,
+      html.ady-redesign .ady-recipient-contact-cancel:hover {
         border-color: var(--ady-line-strong);
         background: var(--ady-blue-soft);
         color: var(--ady-ink);
@@ -1136,6 +1142,50 @@
       html.ady-redesign .ady-recipient-move:disabled {
         opacity: .28;
         cursor: default;
+      }
+      html.ady-redesign .ady-recipient-contact-edit svg,
+      html.ady-redesign .ady-recipient-contact-save svg,
+      html.ady-redesign .ady-recipient-contact-cancel svg {
+        width: 14px;
+        height: 14px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        pointer-events: none;
+      }
+      html.ady-redesign .ady-recipient-editor-row.is-editing {
+        background: color-mix(in srgb, var(--ady-blue-soft) 65%, transparent);
+      }
+      html.ady-redesign .ady-recipient-inline-fields {
+        display: grid;
+        grid-template-columns: minmax(120px, .9fr) minmax(180px, 1.1fr);
+        gap: 6px;
+        min-width: 0;
+      }
+      html.ady-redesign .ady-recipient-inline-fields input {
+        width: 100%;
+        min-width: 0;
+        height: 30px;
+        margin: 0;
+        padding: 5px 7px;
+        border: 1px solid var(--ady-line-strong);
+        border-radius: 7px;
+        box-sizing: border-box;
+        background: var(--ady-paper-strong);
+        color: var(--ady-ink);
+        font: 400 11px/18px 'Inter', sans-serif;
+        outline: none;
+      }
+      html.ady-redesign .ady-recipient-inline-fields input:focus {
+        border-color: var(--ady-navy);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--ady-navy) 14%, transparent);
+      }
+      @media (max-width: 720px) {
+        html.ady-redesign .ady-recipient-inline-fields {
+          grid-template-columns: 1fr;
+        }
       }
       html.ady-redesign .ady-recipient-editor-row-main {
         display: flex;
@@ -2353,6 +2403,7 @@
     let editorDraft = new Map();
     let editorPinnedOrder = [];
     let draggedPinnedKey = '';
+    let editingPinnedKey = '';
 
     const getInput = () => {
       if (activeInput?.isConnected && activeInput.getClientRects().length) return activeInput;
@@ -2463,20 +2514,41 @@
       const availableCustom = [...editorDraft.values()].filter((entry) => entry.source === 'custom' && !entry.checked);
       const availableRecent = [...editorDraft.values()].filter((entry) => entry.source === 'recent' && !entry.checked);
 
-      const pinnedRow = (entry, index) => `
-        <div class="ady-recipient-editor-row is-pinned" data-address="${escapeHtml(entry.address)}">
-          <input type="checkbox" data-address="${escapeHtml(entry.address)}" checked aria-label="Закрепить ${escapeHtml(entry.name || entry.address)}">
-          <span class="ady-recipient-drag-handle" draggable="true" title="Перетащить" aria-label="Перетащить">⋮⋮</span>
-          <span class="ady-recipient-editor-row-main">
-            <span class="ady-recipient-editor-row-name">${escapeHtml(entry.name || entry.address)}</span>
-            <span class="ady-recipient-editor-row-address">${escapeHtml(entry.address)}</span>
-          </span>
-          <span class="ady-recipient-move-controls">
-            <button type="button" class="ady-recipient-move" data-direction="-1" data-address="${escapeHtml(entry.address)}" title="Выше" aria-label="Переместить выше" ${index === 0 ? 'disabled' : ''}>↑</button>
-            <button type="button" class="ady-recipient-move" data-direction="1" data-address="${escapeHtml(entry.address)}" title="Ниже" aria-label="Переместить ниже" ${index === pinnedEntries.length - 1 ? 'disabled' : ''}>↓</button>
-          </span>
-        </div>
-      `;
+      const pinnedRow = (entry, index) => {
+        const key = entry.address.toLowerCase();
+        const isEditing = key === editingPinnedKey;
+        const editIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+        const saveIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+        const cancelIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6 6 18"/></svg>';
+
+        return `
+          <div class="ady-recipient-editor-row is-pinned ${isEditing ? 'is-editing' : ''}" data-address="${escapeHtml(entry.address)}">
+            <input type="checkbox" data-address="${escapeHtml(entry.address)}" checked aria-label="Закрепить ${escapeHtml(entry.name || entry.address)}">
+            <span class="ady-recipient-drag-handle" draggable="${isEditing ? 'false' : 'true'}" title="Перетащить" aria-label="Перетащить">⋮⋮</span>
+            ${isEditing ? `
+              <span class="ady-recipient-inline-fields">
+                <input type="text" class="ady-recipient-inline-name" value="${escapeHtml(entry.name || '')}" placeholder="Название или имя" aria-label="Название или имя">
+                <input type="email" class="ady-recipient-inline-address" value="${escapeHtml(entry.address)}" placeholder="email@example.ru" aria-label="Email">
+              </span>
+            ` : `
+              <span class="ady-recipient-editor-row-main">
+                <span class="ady-recipient-editor-row-name">${escapeHtml(entry.name || entry.address)}</span>
+                <span class="ady-recipient-editor-row-address">${escapeHtml(entry.address)}</span>
+              </span>
+            `}
+            <span class="ady-recipient-move-controls">
+              ${isEditing ? `
+                <button type="button" class="ady-recipient-contact-save" data-address="${escapeHtml(entry.address)}" title="Применить изменения" aria-label="Применить изменения">${saveIcon}</button>
+                <button type="button" class="ady-recipient-contact-cancel" data-address="${escapeHtml(entry.address)}" title="Отмена" aria-label="Отменить редактирование">${cancelIcon}</button>
+              ` : `
+                <button type="button" class="ady-recipient-contact-edit" data-address="${escapeHtml(entry.address)}" title="Редактировать контакт" aria-label="Редактировать контакт">${editIcon}</button>
+                <button type="button" class="ady-recipient-move" data-direction="-1" data-address="${escapeHtml(entry.address)}" title="Выше" aria-label="Переместить выше" ${index === 0 ? 'disabled' : ''}>↑</button>
+                <button type="button" class="ady-recipient-move" data-direction="1" data-address="${escapeHtml(entry.address)}" title="Ниже" aria-label="Переместить ниже" ${index === pinnedEntries.length - 1 ? 'disabled' : ''}>↓</button>
+              `}
+            </span>
+          </div>
+        `;
+      };
 
       const availableRow = (entry) => `
         <label class="ady-recipient-editor-row">
@@ -2514,6 +2586,7 @@
       rememberStockSuggestions();
       rememberChosenRecipients();
       buildEditorDraft();
+      editingPinnedKey = '';
       renderEditor();
       editorError.textContent = '';
       manualName.value = '';
@@ -2526,6 +2599,7 @@
     const closeEditor = () => {
       editorBackdrop.classList.remove('is-open');
       editorError.textContent = '';
+      editingPinnedKey = '';
     };
 
     let stockObserverScheduled = false;
@@ -2636,11 +2710,85 @@
         if (!editorPinnedOrder.includes(key)) editorPinnedOrder.push(key);
       } else {
         editorPinnedOrder = editorPinnedOrder.filter((item) => item !== key);
+        if (editingPinnedKey === key) editingPinnedKey = '';
       }
       renderEditor();
     });
 
     editorLists.addEventListener('click', (event) => {
+      const editButton = event.target.closest('.ady-recipient-contact-edit');
+      if (editButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        editingPinnedKey = editButton.dataset.address.toLowerCase();
+        editorError.textContent = '';
+        renderEditor();
+        requestAnimationFrame(() => {
+          const row = editorLists.querySelector(`.ady-recipient-editor-row.is-pinned[data-address="${CSS.escape(editButton.dataset.address)}"]`);
+          const field = row?.querySelector('.ady-recipient-inline-name');
+          field?.focus();
+          field?.select();
+        });
+        return;
+      }
+
+      const cancelButton = event.target.closest('.ady-recipient-contact-cancel');
+      if (cancelButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        editingPinnedKey = '';
+        editorError.textContent = '';
+        renderEditor();
+        return;
+      }
+
+      const saveButton = event.target.closest('.ady-recipient-contact-save');
+      if (saveButton) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const oldKey = saveButton.dataset.address.toLowerCase();
+        const row = saveButton.closest('.ady-recipient-editor-row.is-pinned');
+        const current = editorDraft.get(oldKey);
+        if (!row || !current) return;
+
+        const name = cleanName(row.querySelector('.ady-recipient-inline-name')?.value);
+        const address = (row.querySelector('.ady-recipient-inline-address')?.value || '').trim();
+        const newKey = address.toLowerCase();
+
+        if (!emailExactPattern.test(address)) {
+          editorError.textContent = 'Введите корректный email.';
+          row.querySelector('.ady-recipient-inline-address')?.focus();
+          return;
+        }
+        if (newKey !== oldKey && editorDraft.has(newKey)) {
+          editorError.textContent = 'Контакт с таким email уже есть в списке.';
+          row.querySelector('.ady-recipient-inline-address')?.focus();
+          return;
+        }
+
+        const updated = {
+          ...current,
+          name: name || address,
+          address,
+          source: newKey === oldKey ? current.source : 'custom',
+          checked: true
+        };
+
+        if (newKey === oldKey) {
+          editorDraft.set(oldKey, updated);
+        } else {
+          editorDraft.delete(oldKey);
+          editorDraft.set(newKey, updated);
+          editorPinnedOrder = editorPinnedOrder.map((key) => key === oldKey ? newKey : key);
+        }
+
+        editingPinnedKey = '';
+        editorError.textContent = '';
+        renderEditor();
+        return;
+      }
+
       const moveButton = event.target.closest('.ady-recipient-move');
       if (!moveButton) return;
       event.preventDefault();
