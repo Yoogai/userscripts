@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.37
+// @version      3.1.38
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.37] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.38] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1048,12 +1048,78 @@
         padding: 8px 9px;
         border-radius: 8px;
         cursor: pointer;
+        transition: background 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+      }
+      html.ady-redesign .ady-recipient-editor-row.is-pinned {
+        grid-template-columns: 20px 22px minmax(0, 1fr) auto;
+        align-items: center;
+        cursor: default;
       }
       html.ady-redesign .ady-recipient-editor-row:hover {
         background: var(--ady-blue-soft);
       }
+      html.ady-redesign .ady-recipient-editor-row.is-dragging {
+        opacity: .45;
+      }
+      html.ady-redesign .ady-recipient-editor-row.is-drop-before {
+        box-shadow: inset 0 2px 0 var(--ady-navy);
+      }
+      html.ady-redesign .ady-recipient-editor-row.is-drop-after {
+        box-shadow: inset 0 -2px 0 var(--ady-navy);
+      }
       html.ady-redesign .ady-recipient-editor-row input {
         margin: 3px 0 0;
+      }
+      html.ady-redesign .ady-recipient-editor-row.is-pinned input {
+        margin: 0;
+      }
+      html.ady-redesign .ady-recipient-drag-handle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 28px;
+        border-radius: 6px;
+        color: var(--ady-muted);
+        font-size: 17px;
+        line-height: 1;
+        cursor: grab;
+        user-select: none;
+      }
+      html.ady-redesign .ady-recipient-drag-handle:hover {
+        background: color-mix(in srgb, var(--ady-navy) 8%, transparent);
+        color: var(--ady-ink);
+      }
+      html.ady-redesign .ady-recipient-drag-handle:active {
+        cursor: grabbing;
+      }
+      html.ady-redesign .ady-recipient-move-controls {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+      html.ady-redesign .ady-recipient-move {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 27px;
+        height: 27px;
+        padding: 0;
+        border: 1px solid var(--ady-line);
+        border-radius: 7px;
+        background: var(--ady-paper-strong);
+        color: var(--ady-muted);
+        font: 600 14px/1 'Inter', sans-serif;
+        cursor: pointer;
+      }
+      html.ady-redesign .ady-recipient-move:hover:not(:disabled) {
+        border-color: var(--ady-line-strong);
+        background: var(--ady-blue-soft);
+        color: var(--ady-ink);
+      }
+      html.ady-redesign .ady-recipient-move:disabled {
+        opacity: .28;
+        cursor: default;
       }
       html.ady-redesign .ady-recipient-editor-row-main {
         min-width: 0;
@@ -2256,6 +2322,8 @@
 
     let activeInput = null;
     let editorDraft = new Map();
+    let editorPinnedOrder = [];
+    let draggedPinnedKey = '';
 
     const getInput = () => {
       if (activeInput?.isConnected && activeInput.getClientRects().length) return activeInput;
@@ -2341,18 +2409,49 @@
       });
 
       editorDraft = draft;
+      editorPinnedOrder = pinnedRecipients
+        .map((entry) => entry.address.toLowerCase())
+        .filter((key, index, list) => draft.has(key) && list.indexOf(key) === index);
+
+      for (const [key, entry] of draft) {
+        if (entry.checked && !editorPinnedOrder.includes(key)) editorPinnedOrder.push(key);
+      }
+    };
+
+    const movePinned = (key, direction) => {
+      const index = editorPinnedOrder.indexOf(key);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= editorPinnedOrder.length) return;
+      [editorPinnedOrder[index], editorPinnedOrder[nextIndex]] = [editorPinnedOrder[nextIndex], editorPinnedOrder[index]];
+      renderEditor();
     };
 
     const renderEditor = () => {
-      const groups = [
-        ['Предустановленные', 'default'],
-        ['Свои адреса', 'custom'],
-        ['Часто используемые', 'recent']
-      ];
+      const pinnedEntries = editorPinnedOrder
+        .map((key) => editorDraft.get(key))
+        .filter((entry) => entry?.checked);
+      const availableDefault = [...editorDraft.values()].filter((entry) => entry.source === 'default' && !entry.checked);
+      const availableCustom = [...editorDraft.values()].filter((entry) => entry.source === 'custom' && !entry.checked);
+      const availableRecent = [...editorDraft.values()].filter((entry) => entry.source === 'recent' && !entry.checked);
 
-      const row = (entry) => `
+      const pinnedRow = (entry, index) => `
+        <div class="ady-recipient-editor-row is-pinned" data-address="${escapeHtml(entry.address)}">
+          <input type="checkbox" data-address="${escapeHtml(entry.address)}" checked aria-label="Закрепить ${escapeHtml(entry.name || entry.address)}">
+          <span class="ady-recipient-drag-handle" draggable="true" title="Перетащить" aria-label="Перетащить">⋮⋮</span>
+          <span class="ady-recipient-editor-row-main">
+            <span class="ady-recipient-editor-row-name">${escapeHtml(entry.name || entry.address)}</span>
+            <span class="ady-recipient-editor-row-address">${escapeHtml(entry.address)}</span>
+          </span>
+          <span class="ady-recipient-move-controls">
+            <button type="button" class="ady-recipient-move" data-direction="-1" data-address="${escapeHtml(entry.address)}" title="Выше" aria-label="Переместить выше" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button type="button" class="ady-recipient-move" data-direction="1" data-address="${escapeHtml(entry.address)}" title="Ниже" aria-label="Переместить ниже" ${index === pinnedEntries.length - 1 ? 'disabled' : ''}>↓</button>
+          </span>
+        </div>
+      `;
+
+      const availableRow = (entry) => `
         <label class="ady-recipient-editor-row">
-          <input type="checkbox" data-address="${escapeHtml(entry.address)}" ${entry.checked ? 'checked' : ''}>
+          <input type="checkbox" data-address="${escapeHtml(entry.address)}">
           <span class="ady-recipient-editor-row-main">
             <span class="ady-recipient-editor-row-name">${escapeHtml(entry.name || entry.address)}</span>
             <span class="ady-recipient-editor-row-address">${escapeHtml(entry.address)}</span>
@@ -2360,18 +2459,26 @@
         </label>
       `;
 
-      editorLists.innerHTML = groups.map(([title, source]) => {
-        const entries = [...editorDraft.values()].filter((entry) => entry.source === source);
-        if (!entries.length && source === 'custom') return '';
-        return `
-          <section class="ady-recipient-editor-group">
-            <h3 class="ady-recipient-editor-group-title">${title}</h3>
-            <div class="ady-recipient-editor-list">
-              ${entries.length ? entries.map(row).join('') : '<div class="ady-recipient-editor-empty">Пока нет адресов.</div>'}
-            </div>
-          </section>
-        `;
-      }).join('');
+      const group = (title, entries, emptyText = 'Пока нет адресов.') => `
+        <section class="ady-recipient-editor-group">
+          <h3 class="ady-recipient-editor-group-title">${title}</h3>
+          <div class="ady-recipient-editor-list">
+            ${entries.length ? entries.map(availableRow).join('') : `<div class="ady-recipient-editor-empty">${emptyText}</div>`}
+          </div>
+        </section>
+      `;
+
+      editorLists.innerHTML = `
+        <section class="ady-recipient-editor-group">
+          <h3 class="ady-recipient-editor-group-title">Закреплённые</h3>
+          <div class="ady-recipient-editor-list ady-recipient-pinned-list">
+            ${pinnedEntries.length ? pinnedEntries.map(pinnedRow).join('') : '<div class="ady-recipient-editor-empty">Нет закреплённых адресов.</div>'}
+          </div>
+        </section>
+        ${group('Доступные контакты', availableDefault)}
+        ${availableCustom.length ? group('Свои адреса', availableCustom) : ''}
+        ${group('Часто используемые', availableRecent)}
+      `;
     };
 
     const openEditor = () => {
@@ -2491,8 +2598,80 @@
     editorLists.addEventListener('change', (event) => {
       const checkbox = event.target.closest('input[type="checkbox"][data-address]');
       if (!checkbox) return;
-      const entry = editorDraft.get(checkbox.dataset.address.toLowerCase());
-      if (entry) entry.checked = checkbox.checked;
+      const key = checkbox.dataset.address.toLowerCase();
+      const entry = editorDraft.get(key);
+      if (!entry) return;
+
+      entry.checked = checkbox.checked;
+      if (entry.checked) {
+        if (!editorPinnedOrder.includes(key)) editorPinnedOrder.push(key);
+      } else {
+        editorPinnedOrder = editorPinnedOrder.filter((item) => item !== key);
+      }
+      renderEditor();
+    });
+
+    editorLists.addEventListener('click', (event) => {
+      const moveButton = event.target.closest('.ady-recipient-move');
+      if (!moveButton) return;
+      event.preventDefault();
+      event.stopPropagation();
+      movePinned(moveButton.dataset.address.toLowerCase(), Number(moveButton.dataset.direction));
+    });
+
+    editorLists.addEventListener('dragstart', (event) => {
+      const handle = event.target.closest('.ady-recipient-drag-handle');
+      const row = handle?.closest('.ady-recipient-editor-row.is-pinned');
+      if (!row) return;
+      draggedPinnedKey = row.dataset.address.toLowerCase();
+      row.classList.add('is-dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', draggedPinnedKey);
+    });
+
+    editorLists.addEventListener('dragend', () => {
+      draggedPinnedKey = '';
+      editorLists.querySelectorAll('.is-dragging, .is-drop-before, .is-drop-after').forEach((node) => {
+        node.classList.remove('is-dragging', 'is-drop-before', 'is-drop-after');
+      });
+    });
+
+    editorLists.addEventListener('dragover', (event) => {
+      if (!draggedPinnedKey) return;
+      const row = event.target.closest('.ady-recipient-editor-row.is-pinned');
+      if (!row || row.dataset.address.toLowerCase() === draggedPinnedKey) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+
+      editorLists.querySelectorAll('.is-drop-before, .is-drop-after').forEach((node) => {
+        if (node !== row) node.classList.remove('is-drop-before', 'is-drop-after');
+      });
+
+      const rect = row.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      row.classList.toggle('is-drop-before', !after);
+      row.classList.toggle('is-drop-after', after);
+    });
+
+    editorLists.addEventListener('drop', (event) => {
+      if (!draggedPinnedKey) return;
+      const row = event.target.closest('.ady-recipient-editor-row.is-pinned');
+      if (!row) return;
+      event.preventDefault();
+
+      const targetKey = row.dataset.address.toLowerCase();
+      if (targetKey === draggedPinnedKey) return;
+
+      const rect = row.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      const reordered = editorPinnedOrder.filter((key) => key !== draggedPinnedKey);
+      let targetIndex = reordered.indexOf(targetKey);
+      if (targetIndex < 0) return;
+      if (after) targetIndex += 1;
+      reordered.splice(targetIndex, 0, draggedPinnedKey);
+      editorPinnedOrder = reordered;
+      draggedPinnedKey = '';
+      renderEditor();
     });
 
     manualForm.addEventListener('submit', (event) => {
@@ -2519,6 +2698,7 @@
           checked: true
         });
       }
+      if (!editorPinnedOrder.includes(key)) editorPinnedOrder.push(key);
 
       editorError.textContent = '';
       manualName.value = '';
@@ -2528,8 +2708,9 @@
     });
 
     editorBackdrop.querySelector('.ady-recipient-editor-save').addEventListener('click', () => {
-      pinnedRecipients = [...editorDraft.values()]
-        .filter((entry) => entry.checked)
+      pinnedRecipients = editorPinnedOrder
+        .map((key) => editorDraft.get(key))
+        .filter((entry) => entry?.checked)
         .map((entry) => ({ name: entry.name, address: entry.address }));
       savePinnedRecipients();
       closeEditor();
