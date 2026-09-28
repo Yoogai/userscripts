@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.43
+// @version      3.1.44
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.43] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.44] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -2479,23 +2479,31 @@
 
     const requestFullContactsScan = (count) => {
       if (!rainLoopContactsHooksInstalled || fullContactsRequestPending || fullContactsRestorePending) return;
-      const currentPage = currentContactsPageLink();
-      if (!currentPage) return;
 
       fullContactsExpectedCount = Math.max(1, Number(count) || 0);
       fullContactsRequestPending = true;
       document.documentElement.classList.add('ady-contact-scan');
 
       clearTimeout(fullContactsKickTimer);
-      fullContactsKickTimer = window.setTimeout(() => {
+      let attempts = 0;
+      const kick = () => {
         const freshCurrentPage = currentContactsPageLink();
-        if (!freshCurrentPage) {
-          fullContactsRequestPending = false;
-          document.documentElement.classList.remove('ady-contact-scan');
+        if (freshCurrentPage) {
+          freshCurrentPage.click();
           return;
         }
-        freshCurrentPage.click();
-      }, 80);
+
+        attempts += 1;
+        if (attempts < 15) {
+          fullContactsKickTimer = window.setTimeout(kick, 100);
+          return;
+        }
+
+        fullContactsRequestPending = false;
+        document.documentElement.classList.remove('ady-contact-scan');
+      };
+
+      fullContactsKickTimer = window.setTimeout(kick, 80);
     };
 
     const installRainLoopContactsHooks = () => {
