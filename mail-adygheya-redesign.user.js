@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.40
+// @version      3.1.41
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.40] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.41] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1134,10 +1134,16 @@
       html.ady-redesign .ady-recipient-move:hover:not(:disabled),
       html.ady-redesign .ady-recipient-contact-edit:hover,
       html.ady-redesign .ady-recipient-contact-save:hover,
-      html.ady-redesign .ady-recipient-contact-cancel:hover {
-        border-color: var(--ady-line-strong);
-        background: var(--ady-blue-soft);
+      html.ady-redesign .ady-recipient-contact-cancel:hover,
+      html.ady-redesign .ady-recipient-move:focus-visible:not(:disabled),
+      html.ady-redesign .ady-recipient-contact-edit:focus-visible,
+      html.ady-redesign .ady-recipient-contact-save:focus-visible,
+      html.ady-redesign .ady-recipient-contact-cancel:focus-visible {
+        border-color: color-mix(in srgb, var(--ady-ink) 22%, var(--ady-line-strong));
+        background: color-mix(in srgb, var(--ady-ink) 8%, var(--ady-paper-strong));
         color: var(--ady-ink);
+        outline: none;
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--ady-ink) 5%, transparent);
       }
       html.ady-redesign .ady-recipient-move:disabled {
         opacity: .28;
@@ -2726,8 +2732,22 @@
         requestAnimationFrame(() => {
           const row = editorLists.querySelector(`.ady-recipient-editor-row.is-pinned[data-address="${CSS.escape(editButton.dataset.address)}"]`);
           const field = row?.querySelector('.ady-recipient-inline-name');
-          field?.focus();
-          field?.select();
+          if (!field) return;
+
+          // For long names show the beginning, not the tail. Selecting the whole
+          // value makes browsers scroll the input to the end.
+          field.focus({ preventScroll: true });
+          try {
+            field.setSelectionRange(0, 0);
+          } catch (_) {}
+          field.scrollLeft = 0;
+
+          requestAnimationFrame(() => {
+            try {
+              field.setSelectionRange(0, 0);
+            } catch (_) {}
+            field.scrollLeft = 0;
+          });
         });
         return;
       }
