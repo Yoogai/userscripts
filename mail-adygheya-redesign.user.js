@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.38
+// @version      3.1.39
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -16,7 +16,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.38] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.39] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1061,11 +1061,27 @@
       html.ady-redesign .ady-recipient-editor-row.is-dragging {
         opacity: .45;
       }
-      html.ady-redesign .ady-recipient-editor-row.is-drop-before {
-        box-shadow: inset 0 2px 0 var(--ady-navy);
+      html.ady-redesign .ady-recipient-editor-row.is-pinned {
+        position: relative;
       }
-      html.ady-redesign .ady-recipient-editor-row.is-drop-after {
-        box-shadow: inset 0 -2px 0 var(--ady-navy);
+      html.ady-redesign .ady-recipient-editor-row.is-drop-before::before,
+      html.ady-redesign .ady-recipient-editor-row.is-drop-after::after {
+        content: "";
+        position: absolute;
+        z-index: 2;
+        left: 0;
+        right: 0;
+        height: 2px;
+        border: 0;
+        border-radius: 0;
+        background: var(--ady-navy);
+        pointer-events: none;
+      }
+      html.ady-redesign .ady-recipient-editor-row.is-drop-before::before {
+        top: -2px;
+      }
+      html.ady-redesign .ady-recipient-editor-row.is-drop-after::after {
+        bottom: -2px;
       }
       html.ady-redesign .ady-recipient-editor-row input {
         margin: 3px 0 0;
@@ -1122,9 +1138,20 @@
         cursor: default;
       }
       html.ady-redesign .ady-recipient-editor-row-main {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
         min-width: 0;
+        overflow: hidden;
+      }
+      html.ady-redesign .ady-recipient-editor-row-main::before,
+      html.ady-redesign .ady-recipient-editor-row-main::after {
+        display: none !important;
+        content: none !important;
       }
       html.ady-redesign .ady-recipient-editor-row-name {
+        display: block;
+        width: 100%;
         overflow: hidden;
         color: var(--ady-ink);
         font: 600 12px/17px 'Inter', sans-serif;
@@ -1132,6 +1159,8 @@
         white-space: nowrap;
       }
       html.ady-redesign .ady-recipient-editor-row-address {
+        display: block;
+        width: 100%;
         overflow: hidden;
         color: var(--ady-muted);
         font: 400 11px/16px 'Inter', sans-serif;
