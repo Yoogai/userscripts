@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.47
+// @version      3.1.48
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.47] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.48] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -143,6 +143,7 @@
       ,mailOpen: '<path d="M3 10V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3"/><path d="m3 10 9 6 9-6"/><path d="M3 10v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>'
       ,flag: '<path d="M5 22V4"/><path d="M5 4c5-3 9 3 14 0v10c-5 3-9-3-14 0"/>'
       ,forward: '<path d="m15 17 5-5-5-5"/><path d="M20 12H4"/>'
+      ,folderMove: '<path d="M3 6h6l2 2h10v11H3Z"/><path d="M13 13h6"/><path d="m16 10 3 3-3 3"/>'
       ,fire: '<path d="M12 3c2 3 5 4 5 9a5 5 0 0 1-10 0c0-2 1-4 3-6 0 3 2 3 2 5 1-2 1-4 0-8Z"/>'
     };
     return `<svg class="ady-inline-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.more}</svg>`;
@@ -424,7 +425,16 @@
         display: none !important;
         margin: 0 !important;
       }
-      /* Keep real nested folders available; only RainLoop-hidden folders are removed above. */
+      /* One icon per top-level user-folder branch in the collapsed rail. */
+      html.ady-redesign.ady-collapsed #rl-left .b-folders-user .b-sub-folders {
+        display: none !important;
+      }
+      html.ady-redesign.ady-collapsed #rl-left .b-folders-user > .e-item > .e-link.ady-descendant-selected {
+        box-shadow: inset 3px 0 var(--ady-accent) !important;
+        background: rgba(255,255,255,.12) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+      }
       html.ady-redesign.ady-collapsed #rl-left .ady-folder-icon {
         margin: 0 !important;
         pointer-events: none !important;
@@ -1318,6 +1328,16 @@
         margin: 0 !important;
         font-size: 0 !important;
         line-height: 0 !important;
+      }
+      html.ady-redesign #rl-sub-left .btn-group.dropdown ul .ady-menu-icon::before,
+      html.ady-redesign #rl-sub-left .btn-group.dropdown ul .ady-menu-icon::after {
+        display: none !important;
+        content: none !important;
+      }
+      html.ady-redesign #rl-sub-left .btn-group.dropdown ul .ady-menu-icon .ady-inline-icon {
+        display: block !important;
+        width: 18px !important;
+        height: 18px !important;
       }
       html.ady-redesign #rl-sub-left .buttonReload.ady-no-tooltip::before,
       html.ady-redesign #rl-sub-left .buttonReload.ady-no-tooltip::after {
@@ -3653,6 +3673,14 @@
       link.classList.add('ady-folder-decorated');
       link.title = name;
     });
+
+    // When a nested user folder is selected, its top-level branch represents
+    // that selection while the sidebar is collapsed.
+    document.querySelectorAll('#rl-left .b-folders-user > .e-item').forEach((rootItem) => {
+      const rootLink = rootItem.querySelector(':scope > .e-link');
+      const selectedDescendant = rootItem.querySelector(':scope > .b-sub-folders .e-link.selected');
+      rootLink?.classList.toggle('ady-descendant-selected', Boolean(selectedDescendant));
+    });
   }
 
   function normalizeMessageListLayout() {
@@ -3771,16 +3799,34 @@
       icon.innerHTML = getActionIcon(iconName);
       icon.classList.add('ady-icon-replaced');
     });
-    document.querySelectorAll('#rl-sub-left .btn-group.dropdown ul li').forEach((item) => {
-      const icon = item.querySelector('i');
-      const text = item.textContent.toLocaleLowerCase('ru');
-      if (!icon) return;
-      item.querySelector('a')?.childNodes.forEach((node) => {
+    document.querySelectorAll('#rl-sub-left .btn-group.dropdown ul li.e-item').forEach((item) => {
+      const anchor = item.querySelector('a.e-link, a');
+      if (!anchor) return;
+
+      const itemBind = item.getAttribute('data-bind') || '';
+      const anchorBind = anchor.getAttribute('data-bind') || '';
+      const bind = `${itemBind} ${anchorBind}`.toLowerCase();
+      const text = item.textContent.replace(/\s+/g, ' ').trim().toLocaleLowerCase('ru');
+
+      let iconName = 'more';
+      if (/listunsetseen/.test(bind) || text.includes('непрочитан')) iconName = 'mail';
+      else if (/listsetseen|listsetallseen/.test(bind) || text.includes('прочитан')) iconName = 'mailOpen';
+      else if (/listsetflags|listunsetflags/.test(bind) || text.includes('флаг')) iconName = 'flag';
+      else if (/forward/.test(bind) || text.includes('пересла')) iconName = 'forward';
+      else if (/move/.test(bind) || text.includes('перенести') || text.includes('переместить')) iconName = 'folderMove';
+      else if (/delete/.test(bind) || text.includes('удал')) iconName = 'trash';
+      else if (/clear/.test(bind) || text.includes('очист')) iconName = 'fire';
+
+      let icon = anchor.querySelector('i.ady-menu-icon, i');
+      if (!icon) {
+        icon = document.createElement('i');
+        anchor.prepend(icon);
+      }
+
+      anchor.childNodes.forEach((node) => {
         if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) node.remove();
       });
-      const iconName = text.includes('непрочитан') ? 'mail' : text.includes('прочитан') ? 'mailOpen'
-        : text.includes('флаг') ? 'flag' : text.includes('пересла') ? 'forward'
-        : text.includes('удалить') ? 'trash' : text.includes('очистить') ? 'fire' : 'more';
+
       icon.className = `ady-menu-icon ady-icon-replaced ${iconName}`;
       icon.innerHTML = getActionIcon(iconName);
       icon.style.setProperty('background', 'transparent', 'important');
