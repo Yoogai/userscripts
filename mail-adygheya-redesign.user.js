@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.48
+// @version      3.1.49
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.48] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.49] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -139,6 +139,11 @@
       folderAdd: '<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
       settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="3"/>',
       user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>'
+      ,userAdd: '<path d="M15 21a7 7 0 0 0-14 0"/><circle cx="8" cy="7" r="4"/><path d="M19 8v6"/><path d="M16 11h6"/>'
+      ,help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.7 2.7 0 1 1 4.8 1.7c-.9 1-2.4 1.3-2.4 3.3"/><path d="M12 18h.01"/>'
+      ,laptop: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/><path d="M9 19h6"/>'
+      ,mobile: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>'
+      ,logout: '<path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/>'
       ,mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'
       ,mailOpen: '<path d="M3 10V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3"/><path d="m3 10 9 6 9-6"/><path d="M3 10v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>'
       ,flag: '<path d="M5 22V4"/><path d="M5 4c5-3 9 3 14 0v10c-5 3-9-3-14 0"/>'
@@ -3789,15 +3794,24 @@
       icon.classList.add('ady-icon-replaced');
     });
     document.querySelectorAll('#rl-right .g-ui-menu i').forEach((icon) => {
-      if (icon.classList.contains('ady-icon-replaced')) return;
       const classes = icon.className;
-      const iconName = classes.includes('icon-cog') ? 'settings'
+      const iconName = classes.includes('icon-ok') ? 'check'
+        : classes.includes('icon-cog') ? 'settings'
         : classes.includes('icon-user') ? 'user'
-        : classes.includes('icon-plus') ? 'folderAdd'
-        : classes.includes('icon-power') ? 'more'
+        : classes.includes('icon-plus') ? 'userAdd'
+        : classes.includes('icon-help') ? 'help'
+        : classes.includes('icon-laptop') ? 'laptop'
+        : classes.includes('icon-mobile') ? 'mobile'
+        : classes.includes('icon-power') ? 'logout'
         : 'more';
+
+      // Re-apply even if this node was decorated before: older versions mapped
+      // several semantic RainLoop icons to the generic ellipsis.
       icon.innerHTML = getActionIcon(iconName);
       icon.classList.add('ady-icon-replaced');
+      icon.dataset.adyActionIcon = iconName;
+      icon.style.setProperty('background', 'transparent', 'important');
+      icon.style.setProperty('background-image', 'none', 'important');
     });
     document.querySelectorAll('#rl-sub-left .btn-group.dropdown ul li.e-item').forEach((item) => {
       const anchor = item.querySelector('a.e-link, a');
