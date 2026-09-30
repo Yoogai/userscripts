@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.44
+// @version      3.1.45
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.44] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.45] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1648,11 +1648,64 @@
       }
       
       /* Attachment Grid */
-      html.ady-redesign .attachmentsPlace .attachmentList {
+      html.ady-redesign .attachmentsPlace .attachmentList,
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .attachmentList {
         display: grid !important;
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
         gap: 8px !important;
+        margin: 0 !important;
         padding: 8px !important;
+        list-style: none !important;
+      }
+
+      /* Compose: keep the editor and attachments on one page. */
+      html.ady-redesign .b-compose .ady-compose-mode-switch {
+        display: none !important;
+      }
+      html.ady-redesign .b-compose .textAreaParent {
+        display: block !important;
+      }
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments {
+        display: none !important;
+        position: relative !important;
+        width: auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 6px 10px 10px !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-top: 1px solid var(--ady-line) !important;
+        background: var(--ady-paper-strong) !important;
+        box-sizing: border-box !important;
+      }
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments.ady-has-attachments {
+        display: block !important;
+      }
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments > .content,
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments > .content > .content-wrapper {
+        position: static !important;
+        inset: auto !important;
+        width: auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+      }
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .nano-pane,
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .no-attachments-desc,
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .b-attachment-place {
+        display: none !important;
+      }
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .attachmentItem {
+        min-width: 0 !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+      }
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .attachmentNameParent {
+        min-width: 0 !important;
       }
       html.ady-redesign .attachmentItem {
         border-radius: 8px !important;
@@ -1710,17 +1763,29 @@
         font-size: 12px !important;
       }
 
-      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .iconMain,
-      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .iconBG,
-      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .iconPreview,
-      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .attachmentIcon,
-      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent .attachmentIconText {
+      html.ady-redesign #rl-sub-right .attachmentItem.ady-decorated .attachmentIconParent .iconMain,
+      html.ady-redesign #rl-sub-right .attachmentItem.ady-decorated .attachmentIconParent .iconBG,
+      html.ady-redesign #rl-sub-right .attachmentItem.ady-decorated .attachmentIconParent .iconPreview,
+      html.ady-redesign #rl-sub-right .attachmentItem.ady-decorated .attachmentIconParent .attachmentIcon,
+      html.ady-redesign #rl-sub-right .attachmentItem.ady-decorated .attachmentIconParent .attachmentIconText {
         display: none !important;
       }
-      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent.hasPreview:hover .iconPreview,
-      html.ady-redesign .attachmentItem.ady-decorated .attachmentIconParent.hasPreplay:hover .iconPreview {
+      html.ady-redesign #rl-sub-right .attachmentItem.ady-decorated .attachmentIconParent.hasPreview:hover .iconPreview,
+      html.ady-redesign #rl-sub-right .attachmentItem.ady-decorated .attachmentIconParent.hasPreplay:hover .iconPreview {
         display: none !important;
         background: transparent !important;
+      }
+
+      /* In compose keep RainLoop upload progress, but replace the static file icon. */
+      html.ady-redesign .b-compose .attachmentItem.ady-decorated .attachmentIconParent .iconMain,
+      html.ady-redesign .b-compose .attachmentItem.ady-decorated .attachmentIconParent .attachmentIcon,
+      html.ady-redesign .b-compose .attachmentItem.ady-decorated .attachmentIconParent .attachmentIconText {
+        display: none !important;
+      }
+      html.ady-redesign .b-compose .attachmentItem.ady-decorated .attachmentIconParent {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
       }
 
       /* File Type Icons */
@@ -2046,27 +2111,80 @@
     }
   }
 
+  function decorateAttachmentItem(item, compose = false) {
+    if (!item || item.classList.contains('ady-decorated')) return;
+    const nameEl = item.querySelector('.attachmentNameParent .attachmentName, .attachmentName');
+    const iconParent = item.querySelector('.attachmentIconParent');
+    if (!nameEl || !iconParent) return;
+
+    const filename = nameEl.textContent.trim();
+    if (!filename) return;
+
+    item.classList.add('ady-decorated');
+    const icon = document.createElement('span');
+    icon.className = getFileTypeClass(filename);
+    icon.setAttribute('aria-hidden', 'true');
+
+    const existingIcon = iconParent.querySelector('.iconMain');
+    if (existingIcon) existingIcon.style.display = 'none';
+    if (!compose) {
+      const background = iconParent.querySelector('.iconBG');
+      if (background) background.style.display = 'none';
+    }
+
+    iconParent.style.display = 'flex';
+    iconParent.style.alignItems = 'center';
+    iconParent.style.justifyContent = 'center';
+    iconParent.appendChild(icon);
+  }
+
+  function normalizeComposeAttachments() {
+    if (!state.enabled) return;
+
+    document.querySelectorAll('.b-compose').forEach((compose) => {
+      const textArea = compose.querySelector('.textAreaParent');
+      const attachmentArea = compose.querySelector('.attachmentAreaParent');
+      if (!textArea || !attachmentArea) return;
+
+      const switchGroup = [...compose.querySelectorAll('.btn-group[data-toggle="buttons-radio"]')]
+        .find((group) => /attachmentsPlace\s*\(/.test(group.getAttribute('data-bind') || '') ||
+          [...group.querySelectorAll('[data-bind]')].some((node) => /attachmentsPlace\s*\(/.test(node.getAttribute('data-bind') || '')));
+
+      if (switchGroup) {
+        switchGroup.classList.add('ady-compose-mode-switch');
+
+        // RainLoop originally makes editor and attachments mutually exclusive.
+        // Keep its observable in "editor" mode so CKEditor remains active.
+        if (!switchGroup.dataset.adyComposeEditorForced) {
+          switchGroup.dataset.adyComposeEditorForced = 'true';
+          const editorButton = [...switchGroup.querySelectorAll('button')].find((button) =>
+            /attachmentsPlace\s*\(\s*false\s*\)/.test(button.getAttribute('data-bind') || '')
+          );
+          editorButton?.click();
+        }
+      }
+
+      attachmentArea.classList.add('ady-compose-inline-attachments');
+      if (attachmentArea.previousElementSibling !== textArea) {
+        textArea.insertAdjacentElement('afterend', attachmentArea);
+      }
+
+      const hasAttachments = Boolean(attachmentArea.querySelector('.attachmentItem'));
+      attachmentArea.classList.toggle('ady-has-attachments', hasAttachments);
+
+      attachmentArea.querySelectorAll('.attachmentItem:not(.ady-decorated)')
+        .forEach((item) => decorateAttachmentItem(item, true));
+    });
+  }
+
   function decorateAttachments() {
     if (!state.enabled) return;
-    document.querySelectorAll('#rl-sub-right .attachmentItem:not(.ady-decorated)').forEach(item => {
-      item.classList.add('ady-decorated');
-      const nameEl = item.querySelector('.attachmentNameParent .attachmentName, .attachmentName');
-      const iconParent = item.querySelector('.attachmentIconParent');
-      if (nameEl && iconParent) {
-        const filename = nameEl.textContent.trim();
-        const cls = getFileTypeClass(filename);
-        const icon = document.createElement('span');
-        icon.className = cls;
-        icon.setAttribute('aria-hidden', 'true');
-        const existingIcon = iconParent.querySelector('.iconMain, .iconBG');
-        if (existingIcon) existingIcon.style.display = 'none';
-        iconParent.style.display = 'flex';
-        iconParent.style.alignItems = 'center';
-        iconParent.style.justifyContent = 'center';
-        iconParent.appendChild(icon);
-      }
-    });
+
+    document.querySelectorAll('#rl-sub-right .attachmentItem:not(.ady-decorated)')
+      .forEach((item) => decorateAttachmentItem(item, false));
+
     document.querySelectorAll('#rl-sub-right .attachmentsPlace').forEach(addDownloadAllButton);
+    normalizeComposeAttachments();
   }
 
   function attachmentDownloadLink(item) {
