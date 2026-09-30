@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.46
+// @version      3.1.47
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.46] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.47] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1747,35 +1747,9 @@
         border-color: var(--ady-navy) !important;
         background: color-mix(in srgb, var(--ady-blue-soft) 82%, var(--ady-paper-strong)) !important;
       }
-      html.ady-redesign .b-compose .ady-compose-drop-icon {
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 52px !important;
-        height: 52px !important;
-        border-radius: 14px !important;
-        background: var(--ady-paper-strong) !important;
-        color: var(--ady-navy) !important;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, .10) !important;
-        pointer-events: none !important;
-      }
-      html.ady-redesign .b-compose .ady-compose-drop-icon svg {
-        width: 26px !important;
-        height: 26px !important;
-        fill: none !important;
-        stroke: currentColor !important;
-        stroke-width: 1.8 !important;
-        stroke-linecap: round !important;
-        stroke-linejoin: round !important;
-      }
       html.ady-redesign .b-compose .ady-compose-drop-title {
         color: var(--ady-ink) !important;
-        font: 700 16px/22px 'Inter', sans-serif !important;
-        pointer-events: none !important;
-      }
-      html.ady-redesign .b-compose .ady-compose-drop-subtitle {
-        color: var(--ady-muted) !important;
-        font: 400 12px/18px 'Inter', sans-serif !important;
+        font: 700 18px/24px 'Inter', sans-serif !important;
         pointer-events: none !important;
       }
       html.ady-redesign .attachmentItem {
@@ -2321,11 +2295,7 @@
         if (!dropZone.dataset.adyDropHintBuilt) {
           dropZone.dataset.adyDropHintBuilt = 'true';
           dropZone.innerHTML = `
-            <span class="ady-compose-drop-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 17V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
-            </span>
-            <span class="ady-compose-drop-title">Отпустите файлы, чтобы прикрепить</span>
-            <span class="ady-compose-drop-subtitle">Можно отпустить в любом месте окна письма</span>
+            <span class="ady-compose-drop-title">Отпустите, чтобы прикрепить файлы</span>
           `;
         }
       }
