@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.45
+// @version      3.1.46
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.45] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.46] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1665,21 +1665,28 @@
       html.ady-redesign .b-compose .textAreaParent {
         display: block !important;
       }
+      html.ady-redesign .b-compose.ady-compose-has-attachments .textAreaParent {
+        height: var(--ady-compose-editor-height, 200px) !important;
+        min-height: 200px !important;
+      }
       html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments {
         display: none !important;
         position: relative !important;
         width: auto !important;
         height: auto !important;
         min-height: 0 !important;
+        max-height: min(190px, 28vh) !important;
         margin: 0 !important;
         padding: 6px 10px 10px !important;
-        overflow: visible !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
         border: 0 !important;
         border-top: 1px solid var(--ady-line) !important;
         background: var(--ady-paper-strong) !important;
         box-sizing: border-box !important;
       }
-      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments.ady-has-attachments {
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments.ady-has-attachments,
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments:has(.attachmentItem) {
         display: block !important;
       }
       html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments > .content,
@@ -1695,8 +1702,7 @@
         overflow: visible !important;
       }
       html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .nano-pane,
-      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .no-attachments-desc,
-      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .b-attachment-place {
+      html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .no-attachments-desc {
         display: none !important;
       }
       html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .attachmentItem {
@@ -1706,6 +1712,71 @@
       }
       html.ady-redesign .b-compose .attachmentAreaParent.ady-compose-inline-attachments .attachmentNameParent {
         min-width: 0 !important;
+      }
+
+      /* Use RainLoop's real upload drop target as a full-compose overlay. */
+      html.ady-redesign .b-compose .b-attachment-place.ady-compose-drop-overlay {
+        display: none !important;
+        position: absolute !important;
+        z-index: 2147482000 !important;
+        inset: 7px !important;
+        width: auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 24px !important;
+        box-sizing: border-box !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-direction: column !important;
+        gap: 9px !important;
+        border: 2px dashed color-mix(in srgb, var(--ady-navy) 72%, var(--ady-line-strong)) !important;
+        border-radius: 12px !important;
+        background: color-mix(in srgb, var(--ady-paper-strong) 88%, var(--ady-blue-soft)) !important;
+        color: var(--ady-ink) !important;
+        box-shadow: 0 16px 48px rgba(15, 23, 42, .18) !important;
+        text-align: center !important;
+        line-height: normal !important;
+        pointer-events: none !important;
+      }
+      html.ady-redesign .b-compose.ady-file-dragging .b-attachment-place.ady-compose-drop-overlay {
+        display: flex !important;
+        pointer-events: auto !important;
+      }
+      html.ady-redesign .b-compose .ady-compose-drop-overlay.dragAndDropOver {
+        border-color: var(--ady-navy) !important;
+        background: color-mix(in srgb, var(--ady-blue-soft) 82%, var(--ady-paper-strong)) !important;
+      }
+      html.ady-redesign .b-compose .ady-compose-drop-icon {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 52px !important;
+        height: 52px !important;
+        border-radius: 14px !important;
+        background: var(--ady-paper-strong) !important;
+        color: var(--ady-navy) !important;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, .10) !important;
+        pointer-events: none !important;
+      }
+      html.ady-redesign .b-compose .ady-compose-drop-icon svg {
+        width: 26px !important;
+        height: 26px !important;
+        fill: none !important;
+        stroke: currentColor !important;
+        stroke-width: 1.8 !important;
+        stroke-linecap: round !important;
+        stroke-linejoin: round !important;
+      }
+      html.ady-redesign .b-compose .ady-compose-drop-title {
+        color: var(--ady-ink) !important;
+        font: 700 16px/22px 'Inter', sans-serif !important;
+        pointer-events: none !important;
+      }
+      html.ady-redesign .b-compose .ady-compose-drop-subtitle {
+        color: var(--ady-muted) !important;
+        font: 400 12px/18px 'Inter', sans-serif !important;
+        pointer-events: none !important;
       }
       html.ady-redesign .attachmentItem {
         border-radius: 8px !important;
@@ -2138,8 +2209,79 @@
     iconParent.appendChild(icon);
   }
 
+  let composeDragHideTimer = 0;
+  let composeDragHandlersInstalled = false;
+
+  function visibleComposeWindow() {
+    return [...document.querySelectorAll('.b-compose')].find((compose) => {
+      if (!compose.getClientRects().length) return false;
+      const style = getComputedStyle(compose);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    }) || null;
+  }
+
+  function isFileDrag(event) {
+    const types = event?.dataTransfer?.types;
+    return Boolean(types && [...types].includes('Files'));
+  }
+
+  function hideComposeDropHint() {
+    window.clearTimeout(composeDragHideTimer);
+    document.querySelectorAll('.b-compose.ady-file-dragging')
+      .forEach((compose) => compose.classList.remove('ady-file-dragging'));
+  }
+
+  function installComposeDragHandlers() {
+    if (composeDragHandlersInstalled) return;
+    composeDragHandlersInstalled = true;
+
+    document.addEventListener('dragover', (event) => {
+      if (!state.enabled || !isFileDrag(event)) return;
+      const compose = visibleComposeWindow();
+      if (!compose) return;
+
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+      compose.classList.add('ady-file-dragging');
+
+      window.clearTimeout(composeDragHideTimer);
+      composeDragHideTimer = window.setTimeout(hideComposeDropHint, 220);
+    }, true);
+
+    document.addEventListener('drop', () => {
+      window.setTimeout(hideComposeDropHint, 80);
+    }, false);
+
+    document.addEventListener('dragend', hideComposeDropHint, true);
+  }
+
+  function resizeComposeEditorForAttachments(compose, textArea, attachmentArea, hasAttachments) {
+    compose.classList.toggle('ady-compose-has-attachments', hasAttachments);
+
+    if (!hasAttachments) {
+      compose.style.removeProperty('--ady-compose-editor-height');
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (!compose.isConnected || !textArea.isConnected || !attachmentArea.isConnected) return;
+
+      const attachmentHeight = Math.min(
+        190,
+        Math.max(0, Math.ceil(attachmentArea.getBoundingClientRect().height || attachmentArea.scrollHeight))
+      );
+      const textTop = textArea.getBoundingClientRect().top;
+      const available = Math.max(200, Math.floor(window.innerHeight - textTop - 40 - attachmentHeight));
+      compose.style.setProperty('--ady-compose-editor-height', `${available}px`);
+
+      // CKEditor/RainLoop listens to resize and recalculates its inner viewport.
+      window.dispatchEvent(new Event('resize'));
+    });
+  }
+
   function normalizeComposeAttachments() {
     if (!state.enabled) return;
+    installComposeDragHandlers();
 
     document.querySelectorAll('.b-compose').forEach((compose) => {
       const textArea = compose.querySelector('.textAreaParent');
@@ -2153,8 +2295,8 @@
       if (switchGroup) {
         switchGroup.classList.add('ady-compose-mode-switch');
 
-        // RainLoop originally makes editor and attachments mutually exclusive.
-        // Keep its observable in "editor" mode so CKEditor remains active.
+        // Keep CKEditor initialized in text mode. CSS makes both sections visible
+        // when needed, so RainLoop's obsolete mode switch is no longer required.
         if (!switchGroup.dataset.adyComposeEditorForced) {
           switchGroup.dataset.adyComposeEditorForced = 'true';
           const editorButton = [...switchGroup.querySelectorAll('button')].find((button) =>
@@ -2169,11 +2311,32 @@
         textArea.insertAdjacentElement('afterend', attachmentArea);
       }
 
+      // Keep RainLoop's actual Jua drop target and its upload handlers, but move
+      // the same bound node to the modal root so it can cover header + editor.
+      let dropZone = compose.querySelector('.b-attachment-place.ady-compose-drop-overlay') ||
+        attachmentArea.querySelector('.b-attachment-place');
+      if (dropZone) {
+        dropZone.classList.add('ady-compose-drop-overlay');
+        if (dropZone.parentElement !== compose) compose.appendChild(dropZone);
+        if (!dropZone.dataset.adyDropHintBuilt) {
+          dropZone.dataset.adyDropHintBuilt = 'true';
+          dropZone.innerHTML = `
+            <span class="ady-compose-drop-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 17V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
+            </span>
+            <span class="ady-compose-drop-title">Отпустите файлы, чтобы прикрепить</span>
+            <span class="ady-compose-drop-subtitle">Можно отпустить в любом месте окна письма</span>
+          `;
+        }
+      }
+
       const hasAttachments = Boolean(attachmentArea.querySelector('.attachmentItem'));
       attachmentArea.classList.toggle('ady-has-attachments', hasAttachments);
 
       attachmentArea.querySelectorAll('.attachmentItem:not(.ady-decorated)')
         .forEach((item) => decorateAttachmentItem(item, true));
+
+      resizeComposeEditorForAttachments(compose, textArea, attachmentArea, hasAttachments);
     });
   }
 
