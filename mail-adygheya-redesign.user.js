@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.52
+// @version      3.1.53
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -21,7 +21,7 @@
     return;
   }
 
-  console.log('[Почта Адыгеи Redesign v3.1.52] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.53] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -1717,6 +1717,30 @@
       html.ady-redesign .b-compose .ady-compose-mode-switch {
         display: none !important;
       }
+      html.ady-redesign .b-compose .b-header-toolbar .button-delete {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        visibility: visible !important;
+        width: 36px !important;
+        height: 34px !important;
+        margin-left: 8px !important;
+        padding: 0 !important;
+        border-radius: 7px !important;
+        box-sizing: border-box !important;
+        cursor: pointer !important;
+      }
+      html.ady-redesign .b-compose .b-header-toolbar .button-delete.disabled {
+        visibility: visible !important;
+        opacity: .58 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
+      }
+      html.ady-redesign .b-compose .b-header-toolbar .button-delete .ady-inline-icon {
+        width: 17px !important;
+        height: 17px !important;
+        color: currentColor !important;
+      }
       html.ady-redesign .b-compose .textAreaParent {
         display: block !important;
       }
@@ -2378,11 +2402,45 @@
     });
   }
 
+  function normalizeComposeDeleteButton(compose) {
+    const deleteButton = compose?.querySelector('.b-header-toolbar .button-delete');
+    if (!deleteButton) return;
+
+    let icon = deleteButton.querySelector('i');
+    if (!icon) {
+      icon = document.createElement('i');
+      deleteButton.appendChild(icon);
+    }
+
+    icon.innerHTML = getActionIcon('trash');
+    icon.classList.add('ady-icon-replaced');
+    icon.style.setProperty('background', 'transparent', 'important');
+    icon.style.setProperty('background-image', 'none', 'important');
+
+    deleteButton.setAttribute('aria-label', 'Удалить письмо');
+    deleteButton.setAttribute('title', 'Удалить письмо');
+
+    if (!deleteButton.dataset.adyDeleteBound) {
+      deleteButton.dataset.adyDeleteBound = 'true';
+      deleteButton.addEventListener('click', (event) => {
+        // RainLoop enables deleteCommand only after a draft UID exists. Before
+        // that, keep the same trash control useful by invoking RainLoop's own
+        // close/discard confirmation instead of leaving the button invisible.
+        if (!deleteButton.classList.contains('disabled')) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        compose.querySelector('.close-custom')?.click();
+      }, true);
+    }
+  }
+
   function normalizeComposeAttachments() {
     if (!state.enabled) return;
     installComposeDragHandlers();
 
     document.querySelectorAll('.b-compose').forEach((compose) => {
+      normalizeComposeDeleteButton(compose);
       const textArea = compose.querySelector('.textAreaParent');
       const attachmentArea = compose.querySelector('.attachmentAreaParent');
       if (!textArea || !attachmentArea) return;
@@ -3074,9 +3132,23 @@
     let editingPinnedKey = '';
     let editorSearchQuery = '';
 
+    const isToInput = (input) => {
+      if (!input?.isConnected) return false;
+      const container = input.closest('.inputosaurus-container');
+      return Boolean(container?.querySelector('.inputosaurus-input-hidden input[data-bind*="emailsTags: to"]'));
+    };
+
+    const getToInputFromTarget = (target) => {
+      const container = target?.closest?.('.inputosaurus-container');
+      if (!container) return null;
+      const input = container.querySelector('input.ui-autocomplete-input');
+      return isToInput(input) ? input : null;
+    };
+
     const getInput = () => {
-      if (activeInput?.isConnected && activeInput.getClientRects().length) return activeInput;
-      return [...document.querySelectorAll('input.ui-autocomplete-input')].find((item) => item.getClientRects().length) || null;
+      if (activeInput?.isConnected && activeInput.getClientRects().length && isToInput(activeInput)) return activeInput;
+      return [...document.querySelectorAll('input.ui-autocomplete-input')]
+        .find((item) => item.getClientRects().length && isToInput(item)) || null;
     };
 
     const render = () => {
@@ -3320,15 +3392,20 @@
     });
     stockObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
 
-    document.addEventListener('focusin', (event) => {
-      if (!isRedesignRuntimeActive()) return;
-      const input = event.target.closest?.('input.ui-autocomplete-input');
-      if (input && input.getClientRects().length && !editorBackdrop.classList.contains('is-open')) open(input);
+    document.addEventListener('click', (event) => {
+      if (!isRedesignRuntimeActive() || editorBackdrop.classList.contains('is-open')) return;
+      const input = getToInputFromTarget(event.target);
+      if (input?.getClientRects().length) open(input);
     });
+
     document.addEventListener('input', (event) => {
-      if (!isRedesignRuntimeActive()) return;
+      if (!isRedesignRuntimeActive() || !menu.classList.contains('is-open')) return;
       const input = event.target.closest?.('input.ui-autocomplete-input');
-      if (input && input.getClientRects().length && !editorBackdrop.classList.contains('is-open')) open(input);
+      if (input && isToInput(input) && input.getClientRects().length && !editorBackdrop.classList.contains('is-open')) {
+        activeInput = input;
+        place();
+        render();
+      }
     });
     document.addEventListener('keydown', (event) => {
       if (!isRedesignRuntimeActive()) return;
@@ -3341,7 +3418,7 @@
         return;
       }
       const input = event.target.closest?.('input.ui-autocomplete-input');
-      if (!input || event.key !== 'Enter') return;
+      if (!input || !isToInput(input) || event.key !== 'Enter') return;
       const address = input.value.match(emailPattern)?.[0];
       if (address && rememberRecipient('', address, true)) saveRecentRecipients();
     });
@@ -3399,9 +3476,11 @@
       menu.classList.remove('is-open');
       window.setTimeout(() => {
         rememberChosenRecipients();
+        if (!input.isConnected || !isToInput(input)) return;
         input.focus();
+        activeInput = input;
         place();
-        render();
+        if (render()) menu.classList.add('is-open');
       }, 80);
     });
 
@@ -3642,9 +3721,8 @@
     });
 
     document.addEventListener('click', (event) => {
-      const input = getInput();
-      const region = input?.closest('.inputosaurus-container');
-      if (event.target !== input && !menu.contains(event.target) && !region?.contains(event.target) && !editor?.contains(event.target)) {
+      const clickedToField = Boolean(getToInputFromTarget(event.target));
+      if (!menu.contains(event.target) && !clickedToField && !editor?.contains(event.target)) {
         menu.classList.remove('is-open');
       }
     });
