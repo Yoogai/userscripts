@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.53
+// @version      3.1.54
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -21,7 +21,7 @@
     return;
   }
 
-  console.log('[Почта Адыгеи Redesign v3.1.53] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.54] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -2423,14 +2423,40 @@
     if (!deleteButton.dataset.adyDeleteBound) {
       deleteButton.dataset.adyDeleteBound = 'true';
       deleteButton.addEventListener('click', (event) => {
-        // RainLoop enables deleteCommand only after a draft UID exists. Before
-        // that, keep the same trash control useful by invoking RainLoop's own
-        // close/discard confirmation instead of leaving the button invisible.
+        if (deleteButton.dataset.adyDeleteReplay === 'true') {
+          deleteButton.dataset.adyDeleteReplay = '';
+          return;
+        }
+
+        // RainLoop may render an opened draft a fraction of a second before its
+        // deleteCommand becomes enabled. Treat a click during that short window
+        // as pending instead of requiring the user to click the trash twice.
         if (!deleteButton.classList.contains('disabled')) return;
 
         event.preventDefault();
         event.stopImmediatePropagation();
-        compose.querySelector('.close-custom')?.click();
+
+        const startedAt = performance.now();
+        const waitForNativeDelete = () => {
+          if (!compose.isConnected || !deleteButton.isConnected) return;
+
+          if (!deleteButton.classList.contains('disabled')) {
+            deleteButton.dataset.adyDeleteReplay = 'true';
+            deleteButton.click();
+            return;
+          }
+
+          if (performance.now() - startedAt < 450) {
+            requestAnimationFrame(waitForNativeDelete);
+            return;
+          }
+
+          // If RainLoop never enables deleteCommand, this is a genuinely new,
+          // unsaved message. Keep the trash control acting as "discard".
+          compose.querySelector('.close-custom')?.click();
+        };
+
+        requestAnimationFrame(waitForNativeDelete);
       }, true);
     }
   }
