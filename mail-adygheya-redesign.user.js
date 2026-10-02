@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.49
+// @version      3.1.50
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,7 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.49] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.50] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -43,15 +43,15 @@
   const MIN_READER = 440;
   const FREQUENT_RECIPIENTS = [
     ['АРЮБ', 'arub@adygheya.gov.ru'],
-    ['АРДБ', 'ardb01@mail.ru'],
+    ['АРДБ', 'ardb01@adygheya.gov.ru'],
     ['АРСБС', 'arsbs_mbo@mail.ru'],
     ['ЦБС г. Адыгейска', 'suriet@bk.ru'],
     ['ЦБС г. Майкопа', 'csistema@mail.ru'],
-    ['Гиагинская МЦБС', 'gmcbs@mail.ru'],
+    ['Гиагинская МЦБС', 'gmcbs@adygheya.gov.ru'],
     ['Кошехабльская МЦБС', 'koshbiblioteka@mail.ru'],
     ['Красногвардейская МЦБС', 'bib.kr01@yandex.ru'],
     ['Майкопский район', 'biblioteka.k@mail.ru'],
-    ['Тахтамукайская МЦБС', 'biblioteka_ta@mail.ru'],
+    ['Тахтамукайская МЦБС', 'biblioteka-tahtamukai@adygheya.gov.ru'],
     ['Теучежская МЦБС', 'teuchcbs@yandex.ru'],
     ['Шовгеновская МЦБС', 'shmcbs.shov@adygheya.gov.ru'],
   ];
@@ -73,6 +73,23 @@
   }
   let availableRecipients = GM_getValue(KEYS.availableRecipients, []);
   if (!Array.isArray(availableRecipients)) availableRecipients = [];
+
+  // Migrate only the built-in library addresses that changed in v3.1.50.
+  // User-added contacts and automatically learned addresses are left untouched.
+  const BUILTIN_RECIPIENT_MIGRATIONS = new Map([
+    ['ardb01@mail.ru', 'ardb01@adygheya.gov.ru'],
+    ['gmcbs@mail.ru', 'gmcbs@adygheya.gov.ru'],
+    ['biblioteka_ta@mail.ru', 'biblioteka-tahtamukai@adygheya.gov.ru'],
+  ]);
+  let pinnedRecipientsMigrated = false;
+  pinnedRecipients = pinnedRecipients.map((entry) => {
+    const address = String(entry?.address || '').trim();
+    const replacement = BUILTIN_RECIPIENT_MIGRATIONS.get(address.toLowerCase());
+    if (!replacement) return entry;
+    pinnedRecipientsMigrated = true;
+    return { ...entry, address: replacement };
+  });
+  if (pinnedRecipientsMigrated) GM_setValue(KEYS.pinnedRecipients, pinnedRecipients);
 
   let center;
   let left;
