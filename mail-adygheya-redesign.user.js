@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.51
+// @version      3.1.52
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -21,7 +21,7 @@
     return;
   }
 
-  console.log('[Почта Адыгеи Redesign v3.1.51] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.52] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -3892,7 +3892,6 @@
       ['#rl-sub-left > div > div.toolbar .button-not-spam i', 'check'],
       ['#rl-sub-left > div > div.toolbar .button-delete i', 'trash'],
       ['#rl-sub-left > div > div.toolbar .buttonMore i', 'more'],
-      ['#rl-left .b-footer .buttonResize i', 'panel'],
       ['#rl-right .system-dropdown > i', 'user'],
     ];
     for (const [selector, iconName] of buttons) {
@@ -3905,14 +3904,40 @@
       icon.innerHTML = getActionIcon(iconName);
       icon.classList.add('ady-icon-replaced');
     }
+
+    // buttonResize must never depend on footer button order. RainLoop may reorder
+    // or hide neighbouring footer actions, which previously made this button
+    // inherit the "folder add" icon.
+    const resizeIcon = document.querySelector('#rl-left .b-footer .buttonResize i');
+    if (resizeIcon) {
+      resizeIcon.innerHTML = getActionIcon('panel');
+      resizeIcon.classList.add('ady-icon-replaced');
+      resizeIcon.dataset.adyActionIcon = 'panel';
+      resizeIcon.style.setProperty('background-image', 'none', 'important');
+      resizeIcon.style.setProperty('background', 'transparent', 'important');
+    }
     document.querySelectorAll('#rl-sub-left > div > div.toolbar .btn').forEach((button) => {
       const icons = button.querySelectorAll('svg.ady-inline-icon');
       icons.forEach((svg, index) => { if (index > 0) svg.remove(); });
     });
-    document.querySelectorAll('#rl-left .b-footer .btn i').forEach((icon, index) => {
-      if (icon.classList.contains('ady-icon-replaced')) return;
-      icon.innerHTML = getActionIcon(['panel', 'folderAdd', 'settings'][index] || 'more');
+    document.querySelectorAll('#rl-left .b-footer .btn').forEach((button) => {
+      if (button.classList.contains('buttonResize')) return;
+
+      const icon = button.querySelector('i');
+      if (!icon) return;
+
+      const classes = `${button.className} ${icon.className}`;
+      const iconName = classes.includes('buttonCreateFolder') || classes.includes('icon-plus')
+        ? 'folderAdd'
+        : classes.includes('buttonSystemFolders') || classes.includes('icon-cog') || classes.includes('icon-wrench')
+          ? 'settings'
+          : 'more';
+
+      icon.innerHTML = getActionIcon(iconName);
       icon.classList.add('ady-icon-replaced');
+      icon.dataset.adyActionIcon = iconName;
+      icon.style.setProperty('background-image', 'none', 'important');
+      icon.style.setProperty('background', 'transparent', 'important');
     });
     document.querySelectorAll('#rl-right .g-ui-menu i').forEach((icon) => {
       const classes = icon.className;
