@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.50
+// @version      3.1.51
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -17,7 +17,11 @@
 (() => {
   'use strict';
 
-  console.log('[Почта Адыгеи Redesign v3.1.50] Скрипт инициализирован');
+  if (/\?\/MobileVersion\/?/i.test(location.search) || /\/MobileVersion\/?/i.test(location.pathname)) {
+    return;
+  }
+
+  console.log('[Почта Адыгеи Redesign v3.1.51] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -174,6 +178,15 @@
   const style = document.createElement('style');
   style.id = 'ady-redesign-style';
   style.textContent = `
+    html:not(.ady-redesign) .ady-recipient-menu,
+    html:not(.ady-redesign) .ady-recipient-editor-backdrop,
+    html:not(.ady-redesign) .ady-inline-icon,
+    html:not(.ady-redesign) .ady-folder-icon,
+    html:not(.ady-redesign) .ady-toolbar-icon,
+    html:not(.ady-redesign) .ady-page-arrow {
+      display: none !important;
+    }
+
     @media (min-width: 800px) {
       html.ady-redesign {
         --ady-ink: #111827;
@@ -1980,8 +1993,8 @@
   }
 
   function applyLayout(persist = false) {
-    if (isSettingsOpen()) return;
-    if (!state.enabled || window.innerWidth < 800 || !center || !left || !right || !subLeft || !subRight) return;
+    if (!isRedesignRuntimeActive()) return;
+    if (window.innerWidth < 800 || !center || !left || !right || !subLeft || !subRight) return;
     const total = center.getBoundingClientRect().width;
     state.folderWidth = clamp(state.folderWidth, MIN_FOLDER, Math.min(340, total - MIN_LIST - MIN_READER));
     state.listWidth = clamp(state.listWidth, MIN_LIST, total - state.folderWidth - MIN_READER);
@@ -2019,16 +2032,25 @@
   }
 
   function applyState() {
-    document.documentElement.classList.toggle('ady-redesign', state.enabled);
-    document.documentElement.classList.toggle('ady-focus', state.enabled && state.focus);
-    document.documentElement.classList.toggle('ady-collapsed', state.enabled && state.collapsed);
-    document.documentElement.dataset.adyTheme = state.theme;
-    document.documentElement.dataset.adyDensity = state.density;
-    if (folderHandle) folderHandle.hidden = !state.enabled;
-    if (listHandle) listHandle.hidden = !state.enabled;
+    const active = isRedesignRuntimeActive();
+    document.documentElement.classList.toggle('ady-redesign', active);
+    document.documentElement.classList.toggle('ady-focus', active && state.focus);
+    document.documentElement.classList.toggle('ady-collapsed', active && state.collapsed);
+
+    if (active) {
+      document.documentElement.dataset.adyTheme = state.theme;
+      document.documentElement.dataset.adyDensity = state.density;
+    } else {
+      document.documentElement.removeAttribute('data-ady-theme');
+      document.documentElement.removeAttribute('data-ady-density');
+    }
+
+    if (folderHandle) folderHandle.hidden = !active;
+    if (listHandle) listHandle.hidden = !active;
     if (!state.enabled) restoreOriginals();
+
     window.dispatchEvent(new Event('resize'));
-    if (state.enabled) requestAnimationFrame(() => applyLayout());
+    if (active) requestAnimationFrame(() => applyLayout());
   }
 
   function isSettingsOpen() {
@@ -2036,25 +2058,59 @@
     if (routeMatch) return true;
     return [...document.querySelectorAll('.b-settings.b-settins-right, .b-settins-right')].some((pane) => {
       if (!pane.getClientRects().length) return false;
-      const style = getComputedStyle(pane);
-      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+      const paneStyle = getComputedStyle(pane);
+      return paneStyle.display !== 'none' && paneStyle.visibility !== 'hidden' && paneStyle.opacity !== '0';
     });
   }
 
-  function suspendRedesignForSettings() {
-    if (!isSettingsOpen()) return false;
+  function isNativeMobileView() {
+    if (/\?\/MobileVersion\/?/i.test(location.search) || /\/MobileVersion\/?/i.test(location.pathname)) return true;
+    if (document.documentElement.classList.contains('rl-mobile-layout')) return true;
 
-    // Settings must remain completely native RainLoop UI.
-    document.documentElement.classList.remove('ady-redesign', 'ady-focus', 'ady-collapsed', 'ady-settings-open');
+    return [...document.querySelectorAll('a[href*="/DesktopVersion/"]')].some((link) => {
+      if (!link.getClientRects().length) return false;
+      const linkStyle = getComputedStyle(link);
+      return linkStyle.display !== 'none' && linkStyle.visibility !== 'hidden';
+    });
+  }
+
+  function isRedesignRuntimeActive() {
+    return state.enabled && !isSettingsOpen() && !isNativeMobileView();
+  }
+
+  function releaseLayoutOverrides() {
+    const properties = ['left', 'right', 'width'];
+    for (const element of [left, right, subLeft, subRight]) {
+      if (!element?.isConnected) continue;
+      properties.forEach((property) => element.style.removeProperty(property));
+    }
+  }
+
+  function suspendRedesignForNativeUi() {
+    if (!isSettingsOpen() && !isNativeMobileView()) return false;
+
+    document.documentElement.classList.remove(
+      'ady-redesign',
+      'ady-focus',
+      'ady-collapsed',
+      'ady-settings-open',
+      'ady-resizing',
+      'ady-contact-scan'
+    );
     document.documentElement.removeAttribute('data-ady-theme');
     document.documentElement.removeAttribute('data-ady-density');
+
+    document.querySelectorAll('.ady-recipient-menu, .ady-recipient-editor-backdrop')
+      .forEach((node) => node.classList.remove('is-open'));
+    document.querySelectorAll('.b-compose.ady-file-dragging')
+      .forEach((node) => node.classList.remove('ady-file-dragging'));
 
     folderHandle?.remove();
     listHandle?.remove();
     folderHandle = null;
     listHandle = null;
 
-    restoreOriginals();
+    releaseLayoutOverrides();
     return true;
   }
 
@@ -2120,7 +2176,7 @@
   }
 
   document.addEventListener('keydown', (event) => {
-    if (!state.enabled || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!isRedesignRuntimeActive() || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.target.matches?.('input, textarea, select, [contenteditable="true"]')) return;
     if (event.code === 'KeyJ') {
       openRelative(1);
@@ -2151,7 +2207,7 @@
 
   document.addEventListener('click', (event) => {
     const resize = event.target.closest?.('#rl-left .b-footer .buttonResize');
-    if (!resize || !state.enabled) return;
+    if (!resize || !isRedesignRuntimeActive()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     state.collapsed = !state.collapsed;
@@ -2159,6 +2215,33 @@
     resize.title = state.collapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель';
     resize.setAttribute('aria-label', resize.title);
     applyState();
+  }, true);
+
+  document.addEventListener('click', (event) => {
+    if (!isRedesignRuntimeActive() || !state.collapsed) return;
+    if (event.target.closest?.('.e-collapsed-sign')) return;
+
+    const link = event.target.closest?.('#rl-left .b-folders-user > .e-item > .e-link');
+    if (!link) return;
+
+    const rootItem = link.closest('.e-item');
+    const subFolders = rootItem?.querySelector(':scope > .b-sub-folders');
+    if (!subFolders?.querySelector(':scope > .e-item')) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    state.collapsed = false;
+    GM_setValue(KEYS.collapsed, false);
+    applyState();
+
+    requestAnimationFrame(() => {
+      const collapseSign = link.querySelector(':scope > .e-collapsed-sign');
+      if (subFolders.classList.contains('collapsed') && collapseSign) {
+        collapseSign.click();
+      }
+      link.scrollIntoView({ block: 'nearest' });
+    });
   }, true);
 
   function positionMessageButtons() {
@@ -2252,7 +2335,7 @@
     composeDragHandlersInstalled = true;
 
     document.addEventListener('dragover', (event) => {
-      if (!state.enabled || !isFileDrag(event)) return;
+      if (!isRedesignRuntimeActive() || !isFileDrag(event)) return;
       const compose = visibleComposeWindow();
       if (!compose) return;
 
@@ -3219,6 +3302,7 @@
 
     let stockObserverScheduled = false;
     const stockObserver = new MutationObserver((mutations) => {
+      if (!isRedesignRuntimeActive()) return;
       const externalMutation = mutations.some((mutation) => !menu.contains(mutation.target) && !editorBackdrop.contains(mutation.target));
       if (!externalMutation || stockObserverScheduled) return;
 
@@ -3237,14 +3321,17 @@
     stockObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
 
     document.addEventListener('focusin', (event) => {
+      if (!isRedesignRuntimeActive()) return;
       const input = event.target.closest?.('input.ui-autocomplete-input');
       if (input && input.getClientRects().length && !editorBackdrop.classList.contains('is-open')) open(input);
     });
     document.addEventListener('input', (event) => {
+      if (!isRedesignRuntimeActive()) return;
       const input = event.target.closest?.('input.ui-autocomplete-input');
       if (input && input.getClientRects().length && !editorBackdrop.classList.contains('is-open')) open(input);
     });
     document.addEventListener('keydown', (event) => {
+      if (!isRedesignRuntimeActive()) return;
       if (event.key === 'Escape') {
         if (editorBackdrop.classList.contains('is-open')) {
           closeEditor();
@@ -3684,6 +3771,23 @@
     if (label && label.textContent !== 'Новое') label.textContent = 'Новое';
   }
 
+  function folderTooltip(name) {
+    const key = String(name || '').trim().toLocaleLowerCase('ru');
+    const nativeNames = {
+      inbox: 'Входящие',
+      sent: 'Отправленные',
+      drafts: 'Черновики',
+      draft: 'Черновики',
+      spam: 'Спам',
+      junk: 'Спам',
+      'junk e-mail': 'Спам',
+      trash: 'Корзина',
+      'deleted items': 'Корзина',
+      archive: 'Архив',
+    };
+    return nativeNames[key] || name;
+  }
+
   function decorateFolders() {
     document.querySelectorAll('#rl-left .e-link:not(.ady-folder-decorated)').forEach(link => {
       const name = link.querySelector('.name')?.textContent.trim();
@@ -3693,7 +3797,7 @@
       icon.innerHTML = getFolderIcon(name);
       link.prepend(icon);
       link.classList.add('ady-folder-decorated');
-      link.title = name;
+      link.title = folderTooltip(name);
     });
 
     // When a nested user folder is selected, its top-level branch represents
@@ -3868,7 +3972,7 @@
   function startAutoRefresh() {
     if (autoRefreshTimer) return;
     autoRefreshTimer = window.setInterval(() => {
-      if (!state.enabled || document.visibilityState !== 'visible') return;
+      if (!isRedesignRuntimeActive() || document.visibilityState !== 'visible') return;
       if (document.querySelector('#rl-center [contenteditable="true"]')) return;
       document.documentElement.classList.add('ady-auto-refreshing');
       refreshMessageListViaApi().catch(() => {}).finally(() => {
@@ -3980,9 +4084,10 @@
   function connect() {
     document.getElementById('ady-redesign-dock')?.remove();
 
-    // Do not modify RainLoop settings at all. This check intentionally runs
-    // before mailbox-only DOM guards because settings may not contain subpanes.
-    if (suspendRedesignForSettings()) return;
+    // Native settings and RainLoop mobile mode are strict no-touch zones.
+    // Check before mailbox-only DOM guards because these views may reuse only
+    // part of the desktop pane structure.
+    if (suspendRedesignForNativeUi()) return;
 
     const nextCenter = document.querySelector('#rl-center');
     const nextLeft = document.querySelector('#rl-left');
@@ -4038,9 +4143,9 @@
 
   observer = new MutationObserver(scheduleConnect);
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('resize', () => { if (!isSettingsOpen()) { applyLayout(); positionMessageButtons(); } });
+  window.addEventListener('resize', () => { if (isRedesignRuntimeActive()) { applyLayout(); positionMessageButtons(); } });
   window.addEventListener('hashchange', scheduleConnect);
   connect();
-  [500, 1500, 3000].forEach((delay) => setTimeout(() => { if (state.enabled) decorateActionIcons(); }, delay));
+  [500, 1500, 3000].forEach((delay) => setTimeout(() => { if (isRedesignRuntimeActive()) decorateActionIcons(); }, delay));
   [250, 1000, 2500, 5000].forEach((delay) => setTimeout(connect, delay));
 })();
