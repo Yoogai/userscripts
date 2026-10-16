@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hide Mail.ru Popups
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  Скрывает рекламные и подписочные окна во входящих Mail.ru
 // @match        https://e.mail.ru/inbox/*
 // @match        https://e.mail.ru/inbox
@@ -16,8 +16,15 @@
 
     const KNOWN_PROMO_TITLE = 'Заканчивается место в едином пространстве Почты и Облака';
     const PROMO_WORDS = /скидк|подписк|выбрать тариф|увеличьте место|почта и облак/i;
+    const KNOWN_CARD_SELECTOR = '.vkuiCard._3SHL_0TJGLF4zClSshGnlD';
     const HIDDEN = new WeakSet();
     const HEADING_SELECTOR = 'h1, h2, h3, [role="heading"]';
+
+    function installEarlyHideStyle() {
+        const style = document.createElement('style');
+        style.textContent = `${KNOWN_CARD_SELECTOR} { display: none !important; }`;
+        (document.head || document.documentElement).appendChild(style);
+    }
 
     function hidePromoForHeading(heading) {
         if (!heading?.matches?.(HEADING_SELECTOR)) return;
@@ -58,6 +65,7 @@
     }
 
     function start() {
+        installEarlyHideStyle();
         hideMailPromos();
         const observer = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
