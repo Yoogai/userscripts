@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Yandex Market → Markdown Card Copier
 // @namespace    https://dwatawolfo.tools/
-// @version      1.2.0
-// @description  Экспорт карточек, отзывов и таблиц сравнения Яндекс Маркета в Markdown, CSV, JSON или ZIP.
+// @version      2.0.0
+// @description  Экспорт карточек и API-отзывов Яндекс Маркета в Markdown, CSV, JSON или ZIP.
 // @homepageURL  https://github.com/Yoogai/userscripts
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/yandex-market-card-copier.user.js
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/yandex-market-card-copier.user.js
@@ -32,24 +32,25 @@
 
   const DEFAULTS = {
     mode: 'full',
+    reviewRangeMode: 'range',
     rangeFrom: 1,
     rangeTo: 100,
-    autoLoad: true,
+    onlyWithPhotos: false,
     autoOpenReviewsPage: true,
     includeImages: true,
     includeProductImages: true,
+    includeReviewImages: true,
     includeDescription: true,
     includeSpecs: true,
     includeDocuments: true,
     maxImages: 30,
-    autoLoadMaxRounds: 80,
-    autoLoadDelayMs: 850,
-    autoLoadStallRounds: 8,
+    maxReviewImages: 100,
   };
 
   const CONFIG = {
     FETCH_TIMEOUT_MS: 45000,
     ZIP_PROGRESS_THROTTLE_MS: 150,
+    MAX_REVIEW_PAGES: 500,
   };
 
   let lastZipProgressTs = 0;
@@ -60,6 +61,8 @@
     progressBarEl: null,
     lastActionBtn: null,
     reviewCache: [],
+    abortController: null,
+    stopButton: null,
   };
 
   const S = {
@@ -173,6 +176,16 @@
       delete button.dataset.oldText;
     }
     button.disabled = false;
+  }
+
+  function beginAbortableExport() {
+    state.abortController = new AbortController();
+    if (state.stopButton) state.stopButton.disabled = false;
+  }
+
+  function endAbortableExport() {
+    if (state.stopButton) state.stopButton.disabled = true;
+    state.abortController = null;
   }
 
   function waitForPaint() {
@@ -479,8 +492,8 @@
       .filter(Boolean);
   }
 
-  function getApiaryPatches() {
-    return qa('noframes[data-apiary="patch"]')
+  function getApiaryPatches(root = document) {
+    return qa('noframes[data-apiary="patch"]', root)
       .map(node => parseJsonLoose(node.textContent))
       .filter(Boolean);
   }
@@ -1127,8 +1140,7 @@
     };
   }
 
-  function collectReviewsFromApiary() {
-    const patches = getApiaryPatches();
+  function collectReviewsFromApiary(patches = getApiaryPatches()) {
     const lists = findDeep(patches, node => Array.isArray(node?.reviews)).flatMap(node => node.reviews);
     const dtoLists = findDeep(patches, node => Array.isArray(node?.reviewsDto?.reviews)).flatMap(node => node.reviewsDto.reviews);
     return uniqueBy([...lists, ...dtoLists].map(extractReviewFromApiary).filter(Boolean), review => review.id || `${review.author}\u0000${review.text}`);
@@ -1136,64 +1148,6 @@
 
   function reviewCacheKey(review) {
     return review.id || [review.author, review.dateText, review.rating, review.text].map(norm).join('\u0000');
-  }
-
-  function collectVisibleReviews() {
-    const apiaryReviews = collectReviewsFromApiary();
-    const domReviews = getAllReviewNodes().map(extractReviewFromDom).filter(review => review.text || review.id);
-    return uniqueBy([...apiaryReviews, ...domReviews], reviewCacheKey);
-  }
-
-  function cacheVisibleReviews() {
-    state.reviewCache = uniqueBy([...state.reviewCache, ...collectVisibleReviews()], reviewCacheKey);
-    return state.reviewCache;
-  }
-
-  function getAllReviewNodes() {
-    return uniqueBy([
-      ...qa('[data-auto="review"], [data-zone-name*="reviewItem"], [data-zone-name="review"], [itemprop="review"]'),
-      ...qa('[data-auto="review-comment"], [data-auto="review-pro"], [data-auto="review-contra"]').map(el => el.closest('article, section, li, div')),
-    ].filter(Boolean), node => node);
-  }
-
-  function expandReviewTextIfPossible(reviewEl) {
-    for (const el of qa('button, a, span, div', reviewEl)) {
-      const text = norm(el.innerText || el.textContent);
-      if (!text) continue;
-      if (/показать полностью|читать полностью|развернуть|ещё|еще/i.test(text) && !/ответить|пожаловаться/i.test(text)) {
-        try { el.click(); } catch (_) {}
-      }
-    }
-  }
-
-  function extractReviewFromDom(reviewEl) {
-    expandReviewTextIfPossible(reviewEl);
-    const pro = norm(q('[data-auto="review-pro"]', reviewEl)?.innerText);
-    const contra = norm(q('[data-auto="review-contra"]', reviewEl)?.innerText);
-    const comment = norm(q('[data-auto="review-comment"]', reviewEl)?.innerText || q('[itemprop="reviewBody"]', reviewEl)?.innerText);
-    const textParts = [
-      pro ? `Достоинства: ${pro}` : '',
-      contra ? `Недостатки: ${contra}` : '',
-      comment ? `Комментарий: ${comment}` : '',
-    ].filter(Boolean);
-    const ariaText = qa('[aria-label], [title]', reviewEl)
-      .map(el => norm(el.getAttribute('aria-label') || el.getAttribute('title')))
-      .join(' ');
-    const rating = ariaText.match(/(\d+(?:[.,]\d+)?)\s*(?:из|\/)\s*5/)?.[1]?.replace(',', '.') || '';
-    const images = qa('img', reviewEl)
-      .map(img => normalizeMarketImageUrl(img.currentSrc || img.src || img.getAttribute('src')))
-      .filter(Boolean);
-    return {
-      id: norm(reviewEl.getAttribute('data-review-id') || reviewEl.id),
-      author: norm(q('[data-auto="user-name"], [itemprop="author"], [class*="author"]', reviewEl)?.innerText),
-      dateText: norm(q('time, [datetime]', reviewEl)?.innerText || q('[datetime]', reviewEl)?.getAttribute('datetime')),
-      rating,
-      pro,
-      contra,
-      comment,
-      text: textParts.join('\n\n') || norm(q('[data-auto="review-comment"], [itemprop="reviewBody"]', reviewEl)?.innerText),
-      images: uniqueBy(images, item => item),
-    };
   }
 
   function reviewToMarkdown(review, index) {
@@ -1211,8 +1165,9 @@
   }
 
   function reviewsToMarkdown(reviews, options = {}) {
-    const from = Math.max(1, parseInt(options.rangeFrom, 10) || 1);
-    const to = Math.max(from, parseInt(options.rangeTo, 10) || from);
+    const automatic = S.get('reviewRangeMode') === 'auto';
+    const from = automatic ? 1 : Math.max(1, parseInt(options.rangeFrom, 10) || 1);
+    const to = automatic ? reviews.length : Math.max(from, parseInt(options.rangeTo, 10) || from);
     const sliced = reviews.slice(from - 1, to);
     const product = collectProductData();
     const lines = [
@@ -1228,7 +1183,10 @@
       '',
     ];
     if (!sliced.length) lines.push('—');
-    else sliced.forEach((review, idx) => lines.push(reviewToMarkdown(review, from + idx)));
+    else sliced.forEach((review, idx) => lines.push(reviewToMarkdown({
+      ...review,
+      images: options.includeImages === false ? [] : (review.images || []).map(url => options.localImages?.[url] || url),
+    }, from + idx)));
     return `${lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()}\n`;
   }
 
@@ -1318,40 +1276,67 @@
     else if (pending.action === 'json') await exportJson(null);
   }
 
-  async function autoLoadUntil(targetCount) {
-    const maxRounds = S.get('autoLoadMaxRounds');
-    const delay = S.get('autoLoadDelayMs');
-    const stallLimit = S.get('autoLoadStallRounds');
-    let stall = 0;
-    let last = cacheVisibleReviews().length;
+  function reviewPageUrl(page) {
+    const url = new URL(getReviewsPageUrl() || location.href, location.origin);
+    url.searchParams.set('page', String(page));
+    return url.href;
+  }
 
-    for (let round = 1; round <= maxRounds; round += 1) {
-      const current = cacheVisibleReviews().length;
-      if (current >= targetCount) break;
-      setStatus(`Догружаю отзывы: ${current}/${targetCount}`, 15 + (round / maxRounds) * 20);
-      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
-      await sleep(delay);
-      const moreButton = qa('button, a').find(el =>
-        /показать ещё|показать еще|ещё отзывы|еще отзывы|загрузить ещё|загрузить еще|читать ещё/i.test(norm(el.innerText || el.textContent))
-      );
-      if (moreButton) {
-        try { moreButton.click(); } catch (_) {}
-        await sleep(delay);
-      }
-      const next = cacheVisibleReviews().length;
-      stall = next <= last ? stall + 1 : 0;
-      last = next;
-      if (stall >= stallLimit) break;
-    }
+  function reviewsFromHtml(html) {
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    return collectReviewsFromApiary(getApiaryPatches(parsed));
+  }
+
+  async function fetchReviewPage(page, signal) {
+    const response = await fetch(reviewPageUrl(page), { credentials: 'include', signal });
+    if (!response.ok) throw new Error(`Не удалось загрузить страницу отзывов ${page}: HTTP ${response.status}`);
+    return reviewsFromHtml(await response.text());
+  }
+
+  function stopRequested() {
+    if (state.abortController?.signal.aborted) throw new DOMException('Экспорт остановлен.', 'AbortError');
   }
 
   async function collectReviewsForCurrentMode() {
     const mode = S.get('mode');
     if (mode !== 'reviews' && mode !== 'full') return [];
-    const target = Math.max(1, parseInt(S.get('rangeTo'), 10) || 1);
-    state.reviewCache = [];
-    if (S.get('autoLoad')) await autoLoadUntil(target);
-    return uniqueBy([...state.reviewCache, ...collectVisibleReviews()], reviewCacheKey);
+    if (!isReviewsPage()) throw new Error('Для сбора отзывов сначала откройте страницу «Все отзывы».');
+
+    const automatic = S.get('reviewRangeMode') === 'auto';
+    const from = Math.max(1, parseInt(S.get('rangeFrom'), 10) || 1);
+    const to = Math.max(from, parseInt(S.get('rangeTo'), 10) || from);
+    const target = automatic ? Number.MAX_SAFE_INTEGER : to;
+    const collected = new Map();
+    const startPage = 1;
+
+    for (let page = startPage; page <= CONFIG.MAX_REVIEW_PAGES; page += 1) {
+      stopRequested();
+      const countBeforePage = collected.size;
+      let pageReviews;
+      if (page === 1) pageReviews = collectReviewsFromApiary();
+      else {
+        await sleep(250);
+        stopRequested();
+        pageReviews = await fetchReviewPage(page, state.abortController?.signal);
+      }
+      if (!pageReviews.length) break;
+      for (const review of pageReviews) collected.set(reviewCacheKey(review), review);
+      if (page > 1 && collected.size === countBeforePage) break;
+
+      const filteredCount = Array.from(collected.values()).filter(review =>
+        !S.get('onlyWithPhotos') || review.images?.length
+      ).length;
+      setStatus(
+        automatic ? `Загружено отзывов: ${filteredCount}` : `Загружено отзывов: ${Math.min(filteredCount, to)}/${to}`,
+        Math.min(72, 12 + (page / Math.max(1, Math.ceil(to / 20))) * 40)
+      );
+      if (!automatic && filteredCount >= to) break;
+    }
+
+    const reviews = Array.from(collected.values()).filter(review =>
+      !S.get('onlyWithPhotos') || review.images?.length
+    );
+    return reviews;
   }
 
   async function buildMarkdown(mode = S.get('mode')) {
@@ -1360,8 +1345,8 @@
     const from = S.get('rangeFrom');
     const to = S.get('rangeTo');
     if (mode === 'product') return productToMarkdown(product);
-    if (mode === 'reviews') return reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to });
-    return `${productToMarkdown(product).trim()}\n\n${reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to }).trim()}\n`;
+    if (mode === 'reviews') return reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to, includeImages: S.get('includeImages') });
+    return `${productToMarkdown(product).trim()}\n\n${reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to, includeImages: S.get('includeImages') }).trim()}\n`;
   }
 
   function makeBaseName(mode = S.get('mode')) {
@@ -1392,6 +1377,7 @@
 
   async function exportMarkdown(button, copy = false) {
     if (maybeOpenReviewsPageForExport(copy ? 'copy' : 'download')) return;
+    beginAbortableExport();
     setBusy(button, copy ? 'Копирую...' : 'MD...');
     setStatus(copy ? 'Готовлю Markdown для буфера...' : 'Готовлю Markdown...', 12);
     try {
@@ -1409,15 +1395,18 @@
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(message);
-      notify('Yandex Market', message, 'error');
+      const stopped = error?.name === 'AbortError';
+      setStatus(stopped ? 'Экспорт остановлен.' : message);
+      if (!stopped) notify('Yandex Market', message, 'error');
     } finally {
+      endAbortableExport();
       restoreBusy(button);
     }
   }
 
   async function exportZip(button) {
     if (maybeOpenReviewsPageForExport('zip')) return;
+    beginAbortableExport();
     const mode = S.get('mode');
     const includeImages = S.get('includeProductImages');
     const from = S.get('rangeFrom');
@@ -1429,6 +1418,7 @@
     try {
       const product = collectProductData();
       const reviews = await collectReviewsForCurrentMode();
+      const selectedReviews = S.get('reviewRangeMode') === 'auto' ? reviews : reviews.slice(from - 1, to);
       const zipEntries = [];
       const warnings = [];
       const usedNames = new Set();
@@ -1437,6 +1427,7 @@
 
       if (includeImages && product.images?.length) {
         for (let i = 0; i < product.images.length; i += 1) {
+          stopRequested();
           const image = product.images[i];
           const baseFileName = makeImageFileName(image, usedNames).replace(/\.[^.]+$/i, '');
           setBusy(button, `${i + 1}/${product.images.length}`);
@@ -1473,18 +1464,45 @@
         })),
       };
 
+      const localReviewImages = {};
+      if (S.get('includeReviewImages') && mode !== 'product') {
+        const reviewJobs = [];
+        for (const [reviewIndex, review] of selectedReviews.entries()) {
+          for (const [imageIndex, url] of (review.images || []).entries()) {
+            if (reviewJobs.length >= Math.max(1, Number(S.get('maxReviewImages')) || 100)) break;
+            reviewJobs.push({ reviewIndex, imageIndex, review, url });
+          }
+          if (reviewJobs.length >= Math.max(1, Number(S.get('maxReviewImages')) || 100)) break;
+        }
+        for (let i = 0; i < reviewJobs.length; i += 1) {
+          stopRequested();
+          const job = reviewJobs[i];
+          setStatus(`Скачиваю фото отзывов: ${i + 1}/${reviewJobs.length}`, 68 + (i / Math.max(1, reviewJobs.length)) * 8);
+          try {
+            const { buffer, contentType, finalUrl, usedUrl } = await fetchImageBinary({ url: job.url, index: job.imageIndex + 1 });
+            const name = ensureExtension(`review_${job.review.id || job.reviewIndex + 1}_${job.imageIndex + 1}`, contentType, usedUrl || finalUrl || job.url);
+            const path = `review-images/${name}`;
+            zipEntries.push({ name: path, data: buffer });
+            localReviewImages[job.url] = path;
+            imagesMeta.push({ kind: 'review', reviewId: job.review.id, url: job.url, localName: path, bytes: buffer.byteLength });
+          } catch (error) {
+            warnings.push({ reviewId: job.review.id, url: job.url, error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+      }
+
       const exportMarkdown = mode === 'reviews'
-        ? reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to })
+        ? reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to, includeImages: S.get('includeImages'), localImages: localReviewImages })
         : mode === 'product'
           ? productToMarkdown(productWithImageMeta, { localImages })
-          : `${productToMarkdown(productWithImageMeta, { localImages }).trim()}\n\n${reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to }).trim()}\n`;
+          : `${productToMarkdown(productWithImageMeta, { localImages }).trim()}\n\n${reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to, includeImages: S.get('includeImages'), localImages: localReviewImages }).trim()}\n`;
 
       zipEntries.push({ name: 'export.md', data: exportMarkdown });
       zipEntries.push({ name: 'product.json', data: JSON.stringify(productWithImageMeta, null, 2) });
       if (mode !== 'reviews') zipEntries.push({ name: 'product.md', data: productToMarkdown(productWithImageMeta, { localImages }) });
       if (mode !== 'product') {
-        zipEntries.push({ name: 'reviews.md', data: reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to }) });
-        zipEntries.push({ name: 'reviews.json', data: JSON.stringify(reviews, null, 2) });
+        zipEntries.push({ name: 'reviews.md', data: reviewsToMarkdown(reviews, { rangeFrom: from, rangeTo: to, includeImages: S.get('includeImages'), localImages: localReviewImages }) });
+        zipEntries.push({ name: 'reviews.json', data: JSON.stringify(selectedReviews, null, 2) });
       }
       if (imagesMeta.length) zipEntries.push({ name: 'images.json', data: JSON.stringify(imagesMeta, null, 2) });
       if (warnings.length) zipEntries.push({ name: 'warnings.json', data: JSON.stringify(warnings, null, 2) });
@@ -1505,28 +1523,36 @@
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(message);
-      notify('Yandex Market', message, 'error');
+      const stopped = error?.name === 'AbortError';
+      setStatus(stopped ? 'Экспорт остановлен.' : message);
+      if (!stopped) notify('Yandex Market', message, 'error');
     } finally {
+      endAbortableExport();
       restoreBusy(button);
     }
   }
 
   async function exportJson(button) {
     if (maybeOpenReviewsPageForExport('json')) return;
+    beginAbortableExport();
     setBusy(button, 'JSON...');
     setStatus('Собираю JSON...');
     try {
       await waitForPaint();
       const product = collectProductData();
       const reviews = await collectReviewsForCurrentMode();
-      saveText(`${makeBaseName(S.get('mode'))}.json`, JSON.stringify({ product, reviews }, null, 2), 'application/json;charset=utf-8');
+      const from = Math.max(1, parseInt(S.get('rangeFrom'), 10) || 1);
+      const to = Math.max(from, parseInt(S.get('rangeTo'), 10) || from);
+      const selectedReviews = S.get('reviewRangeMode') === 'auto' ? reviews : reviews.slice(from - 1, to);
+      saveText(`${makeBaseName(S.get('mode'))}.json`, JSON.stringify({ product, reviews: selectedReviews }, null, 2), 'application/json;charset=utf-8');
       setStatus('JSON сохранён.');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(message);
-      notify('Yandex Market', message, 'error');
+      const stopped = error?.name === 'AbortError';
+      setStatus(stopped ? 'Экспорт остановлен.' : message);
+      if (!stopped) notify('Yandex Market', message, 'error');
     } finally {
+      endAbortableExport();
       restoreBusy(button);
     }
   }
@@ -1534,165 +1560,26 @@
   function addStyle() {
     if (typeof GM_addStyle !== 'function') return;
     GM_addStyle(`
-      #${TOAST_ROOT_ID} {
-        position: fixed;
-        right: 18px;
-        bottom: 96px;
-        z-index: 2147483647;
-        display: grid;
-        gap: 8px;
-        pointer-events: none;
-      }
-      .ymmd-toast {
-        max-width: 360px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        background: #17212b;
-        color: #fff;
-        font: 13px/1.35 Arial, sans-serif;
-        box-shadow: 0 10px 28px rgba(0,0,0,.22);
-      }
-      .ymmd-toast.ok { background: #166534; }
-      .ymmd-toast.error { background: #991b1b; }
-      #${UI_ROOT_ID} {
-        position: fixed;
-        right: 18px;
-        bottom: 18px;
-        z-index: 2147483646;
-        font: 13px/1.35 Arial, sans-serif;
-        color: #111827;
-      }
-      .ymmd-trigger {
-        width: 58px;
-        height: 42px;
-        border: 0;
-        border-radius: 12px;
-        background: #fc0;
-        color: #111;
-        font-weight: 800;
-        cursor: pointer;
-        box-shadow: 0 10px 28px rgba(0,0,0,.22);
-      }
-      .ymmd-panel {
-        position: absolute;
-        right: 0;
-        bottom: 54px;
-        width: 330px;
-        display: none;
-        padding: 14px;
-        border: 1px solid rgba(17,24,39,.12);
-        border-radius: 12px;
-        background: #fff;
-        box-shadow: 0 18px 44px rgba(0,0,0,.24);
-      }
-      .ymmd-panel.open { display: block; }
-      .ymmd-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        margin-bottom: 12px;
-      }
-      .ymmd-title {
-        margin: 0;
-        font-size: 15px;
-        line-height: 1.2;
-        font-weight: 800;
-      }
-      .ymmd-close {
-        width: 28px;
-        height: 28px;
-        border: 0;
-        border-radius: 8px;
-        background: #f3f4f6;
-        cursor: pointer;
-        font-size: 18px;
-        line-height: 1;
-      }
-      .ymmd-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 8px;
-        margin-bottom: 12px;
-      }
-      .ymmd-btn {
-        min-height: 34px;
-        border: 0;
-        border-radius: 8px;
-        padding: 8px 10px;
-        cursor: pointer;
-        font-weight: 700;
-        color: #111827;
-        background: #f3f4f6;
-      }
-      .ymmd-btn.primary { background: #fc0; }
-      .ymmd-btn.secondary { background: #e5e7eb; }
-      .ymmd-btn.zip { background: #111827; color: #fff; }
-      .ymmd-btn:disabled { opacity: .65; cursor: wait; }
-      #${UI_ROOT_ID} [hidden] { display: none !important; }
-      .ymmd-compare-tools { margin: 8px 0 12px; }
-      .ymmd-compare-tools .ymmd-btn { width: 100%; }
-      .ymmd-compare-note { margin: 0 0 8px; color: #6b7280; font-size: 12px; }
-      .ymmd-options {
-        display: grid;
-        gap: 8px;
-        margin-bottom: 10px;
-      }
-      .ymmd-label {
-        display: grid;
-        gap: 5px;
-        color: #374151;
-        font-weight: 700;
-      }
-      .ymmd-select {
-        width: 100%;
-        padding: 7px 8px;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        background: #fff;
-      }
-      .ymmd-check {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #374151;
-      }
-      .ymmd-check input { width: 16px; height: 16px; }
-      .ymmd-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-      }
-      .ymmd-row input[type="number"] {
-        width: 72px;
-        padding: 5px 7px;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-      }
-      .ymmd-status {
-        min-height: 18px;
-        color: #6b7280;
-        font-size: 12px;
-      }
-      .ymmd-progress {
-        height: 6px;
-        margin-top: 8px;
-        border-radius: 999px;
-        overflow: hidden;
-        background: #e5e7eb;
-      }
-      .ymmd-progress > span {
-        display: block;
-        height: 100%;
-        width: 0%;
-        background: #fc0;
-        transition: width .16s ease;
-      }
-      @media (max-width: 520px) {
-        #${UI_ROOT_ID} { left: 12px; right: 12px; }
-        .ymmd-panel { width: auto; left: 0; right: 0; }
-      }
+      #${TOAST_ROOT_ID}{position:fixed;right:18px;bottom:96px;z-index:2147483647;display:grid;gap:8px;pointer-events:none}
+      .ymmd-toast{max-width:360px;padding:11px 14px;border-radius:8px;background:#222;color:#fff;font:13px/1.4 Arial,sans-serif;box-shadow:0 10px 28px rgba(0,0,0,.22)}
+      .ymmd-toast.ok{background:#16844a}.ymmd-toast.error{background:#b3261e}
+      #${UI_ROOT_ID}{position:fixed;right:20px;bottom:20px;z-index:2147483646;color:#222;font:14px/1.4 Arial,sans-serif}
+      .ymmd-trigger{width:52px;height:52px;border:0;border-radius:50%;background:#fc0;color:#222;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.22)}
+      .ymmd-panel{position:absolute;right:0;bottom:64px;width:min(400px,calc(100vw - 32px));max-height:min(82vh,760px);overflow:auto;display:none;padding:0;border:1px solid #e5e5e5;border-radius:10px;background:#fff;box-shadow:0 12px 36px rgba(0,0,0,.24)}
+      .ymmd-panel.open{display:block}.ymmd-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px;border-bottom:1px solid #eee}
+      .ymmd-title{margin:0;font-size:17px;line-height:1.2;font-weight:700}.ymmd-close{width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:#555;cursor:pointer;font-size:22px;line-height:1}
+      .ymmd-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:14px 18px 6px}
+      .ymmd-btn{min-height:38px;border:0;border-radius:6px;padding:8px 9px;cursor:pointer;font:700 13px/1.2 Arial,sans-serif;color:#222;background:#f2f2f2}
+      .ymmd-btn.primary{background:#fc0}.ymmd-btn.secondary{background:#f2f2f2}.ymmd-btn.zip{background:#222;color:#fff}.ymmd-btn.danger{color:#b3261e;background:#fff0ef}.ymmd-btn:disabled{opacity:.55;cursor:wait}
+      #${UI_ROOT_ID} [hidden]{display:none!important}.ymmd-section{padding:12px 18px;border-top:1px solid #eee}.ymmd-section-title{margin:0 0 10px;color:#666;font-size:12px;font-weight:700}
+      .ymmd-compare-tools{padding:16px 18px}.ymmd-compare-tools .ymmd-btn{width:100%}.ymmd-compare-note{margin:0 0 10px;color:#666;font-size:12px}
+      .ymmd-options{display:grid;gap:10px}.ymmd-label{display:grid;gap:6px;color:#333;font-weight:600}
+      .ymmd-select{width:100%;min-height:38px;padding:8px 10px;border:1px solid #d8d8d8;border-radius:6px;background:#fff;color:#222;font:inherit}
+      .ymmd-check{display:flex;align-items:center;gap:8px;color:#333;font-size:13px}.ymmd-check input{width:17px;height:17px;margin:0;accent-color:#222}
+      .ymmd-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#333;font-size:13px}.ymmd-row input[type=number]{width:94px;min-height:34px;padding:5px 8px;border:1px solid #d8d8d8;border-radius:6px;color:#222;font:inherit}
+      .ymmd-status-wrap{padding:10px 18px 16px}.ymmd-status{min-height:18px;color:#666;font-size:12px}.ymmd-progress{height:4px;margin-top:10px;border-radius:999px;overflow:hidden;background:#eee}
+      .ymmd-progress>span{display:block;height:100%;width:0%;background:#222;transition:width .16s ease}
+      @media(max-width:520px){#${UI_ROOT_ID}{right:12px;bottom:12px}.ymmd-panel{right:0;width:calc(100vw - 24px);max-height:84vh}}
     `);
   }
 
@@ -1715,6 +1602,8 @@
         <button class="ymmd-btn secondary" data-act="download" type="button">MD</button>
         <button class="ymmd-btn zip" data-act="zip" type="button">ZIP</button>
       </div>
+      <section class="ymmd-section ymmd-product-options">
+      <p class="ymmd-section-title">СОДЕРЖИМОЕ</p>
       <div class="ymmd-options">
         <label class="ymmd-label">Что сохранить
           <select class="ymmd-select" data-k="mode">
@@ -1723,9 +1612,24 @@
             <option value="reviews">Только отзывы</option>
           </select>
         </label>
-        <label class="ymmd-row">Отзывы с № <input data-k="rangeFrom" type="number" min="1" step="1"></label>
-        <label class="ymmd-row">Отзывы по № <input data-k="rangeTo" type="number" min="1" step="1"></label>
-        <label class="ymmd-check"><input data-k="autoLoad" type="checkbox">Догружать отзывы</label>
+      </div>
+      </section>
+      <section class="ymmd-section ymmd-review-options">
+      <p class="ymmd-section-title">ОТЗЫВЫ</p>
+      <div class="ymmd-options">
+        <label class="ymmd-label">Количество
+          <select class="ymmd-select" data-k="reviewRangeMode"><option value="range">Заданный диапазон</option><option value="auto">Все доступные</option></select>
+        </label>
+        <label class="ymmd-row ymmd-range-field">С отзыва № <input data-k="rangeFrom" type="number" min="1" step="1"></label>
+        <label class="ymmd-row ymmd-range-field">По отзыв № <input data-k="rangeTo" type="number" min="1" step="1"></label>
+        <label class="ymmd-check"><input data-k="onlyWithPhotos" type="checkbox">Только отзывы с фото</label>
+        <label class="ymmd-check"><input data-k="includeReviewImages" type="checkbox">Фото отзывов в ZIP</label>
+        <label class="ymmd-row ymmd-review-image-limit">Макс. фото отзывов <input data-k="maxReviewImages" type="number" min="1" max="500" step="1"></label>
+      </div>
+      </section>
+      <section class="ymmd-section ymmd-product-image-options">
+      <p class="ymmd-section-title">КАРТОЧКА ТОВАРА</p>
+      <div class="ymmd-options">
         <label class="ymmd-check"><input data-k="includeImages" type="checkbox">Изображения</label>
         <label class="ymmd-check"><input data-k="includeProductImages" type="checkbox">Картинки в ZIP</label>
         <label class="ymmd-check"><input data-k="includeDescription" type="checkbox">Описание</label>
@@ -1733,22 +1637,25 @@
         <label class="ymmd-check"><input data-k="includeDocuments" type="checkbox">Документы</label>
         <label class="ymmd-row">Макс. изображений <input data-k="maxImages" type="number" min="1" max="80" step="1"></label>
       </div>
+      </section>
       <div class="ymmd-grid">
         <button class="ymmd-btn secondary" data-act="json" type="button">JSON</button>
+        <button class="ymmd-btn danger" data-act="stop" type="button" disabled>Остановить</button>
       </div>
       <div class="ymmd-compare-tools" hidden>
         <p class="ymmd-compare-note">Товары, цены и характеристики со страницы сравнения.</p>
         <button class="ymmd-btn primary" data-act="compare-csv" type="button">Скачать таблицу CSV</button>
       </div>
-      <div class="ymmd-status">Готово.</div>
+      <div class="ymmd-status-wrap"><div class="ymmd-status">Готово.</div>
       <div class="ymmd-progress" hidden><span></span></div>
+      </div>
     `;
 
     const trigger = document.createElement('button');
     trigger.className = 'ymmd-trigger';
     trigger.type = 'button';
     trigger.title = 'Yandex Market Markdown';
-    trigger.textContent = 'YM';
+    trigger.textContent = 'Я';
 
     root.appendChild(panel);
     root.appendChild(trigger);
@@ -1759,9 +1666,10 @@
     state.progressBarEl = q('.ymmd-progress > span', panel);
 
     const compareMode = isComparePage();
-    q('.ymmd-title', panel).textContent = compareMode ? 'Таблица сравнения Яндекс Маркета' : 'Яндекс Маркет → Markdown';
-    qa('.ymmd-grid, .ymmd-options', panel).forEach(el => { el.hidden = compareMode; });
+    q('.ymmd-title', panel).textContent = compareMode ? 'Сравнение товаров' : 'Экспорт товара';
+    qa('.ymmd-grid, .ymmd-section', panel).forEach(el => { el.hidden = compareMode; });
     q('.ymmd-compare-tools', panel).hidden = !compareMode;
+    state.stopButton = q('[data-act="stop"]', panel);
 
     for (const input of qa('[data-k]', panel)) {
       const key = input.getAttribute('data-k');
@@ -1771,26 +1679,37 @@
 
     trigger.addEventListener('click', () => panel.classList.toggle('open'));
     q('.ymmd-close', panel).addEventListener('click', () => panel.classList.remove('open'));
+    updateReviewControls();
 
     panel.addEventListener('change', event => {
       const el = event.target;
       const key = el?.getAttribute?.('data-k');
       if (!key) return;
       if (el.type === 'checkbox') S.set(key, el.checked);
-      else if (el.type === 'number') S.set(key, Math.max(1, parseInt(el.value, 10) || 1));
+      else if (el.type === 'number') S.set(key, Math.min(Number(el.max) || 10000, Math.max(1, parseInt(el.value, 10) || 1)));
       else S.set(key, el.value);
+      if (key === 'reviewRangeMode' || key === 'onlyWithPhotos' || key === 'includeReviewImages') updateReviewControls();
     });
 
     panel.addEventListener('click', event => {
       const button = event.target.closest('button[data-act]');
       if (!button) return;
       const action = button.getAttribute('data-act');
+      if (action === 'stop') { state.abortController?.abort(); setStatus('Останавливаю экспорт...', 0); return; }
       if (action === 'copy') exportMarkdown(button, true);
       if (action === 'download') exportMarkdown(button, false);
       if (action === 'zip') exportZip(button);
       if (action === 'json') exportJson(button);
       if (action === 'compare-csv') exportCompareTable(button);
     });
+  }
+
+  function updateReviewControls() {
+    const panel = document.getElementById(UI_ROOT_ID);
+    if (!panel) return;
+    const automatic = q('[data-k="reviewRangeMode"]', panel)?.value === 'auto';
+    qa('.ymmd-range-field', panel).forEach(el => { el.hidden = automatic; });
+    q('.ymmd-review-image-limit', panel).hidden = !q('[data-k="includeReviewImages"]', panel)?.checked;
   }
 
   if (typeof GM_registerMenuCommand === 'function') {
@@ -1810,4 +1729,5 @@
   const observer = new MutationObserver(() => ensureUi());
   observer.observe(document.documentElement, { childList: true, subtree: true });
 })();
+
 
