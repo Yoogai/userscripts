@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNS → Markdown Catalog Exporter
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      1.0.0
+// @version      1.1.0
 // @description  Выгружает товары из каталога DNS в структурированный Markdown для ИИ.
 // @homepageURL  https://github.com/Yoogai/userscripts
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/dns-shop-catalog-to-markdown.user.js
@@ -36,6 +36,7 @@
 
   let busy = false;
   let observer = null;
+  let toastTimer = null;
 
   function cleanText(value) {
     return String(value ?? '')
@@ -83,7 +84,9 @@
   function isCardCandidate(element, baseUrl) {
     if (!element || element === document.body || element === document.documentElement) return false;
     if (uniqueProductUrls(element, baseUrl).length !== 1) return false;
-    return hasPrice(element.innerText || element.textContent);
+    return element.classList?.contains('catalog-product') ||
+      hasPrice(element.innerText || element.textContent) ||
+      /\bнет\s+в\s+наличии\b/i.test(element.innerText || element.textContent || '');
   }
 
   function findCardRoot(anchor, baseUrl) {
@@ -122,7 +125,8 @@
     }
 
     const match = String(text || '').match(PRICE_PATTERN);
-    return match ? cleanText(match[0]) : '';
+    if (match) return cleanText(match[0]);
+    return /\bнет\s+в\s+наличии\b/i.test(String(text || '')) ? 'Нет в наличии' : '';
   }
 
   function extractRating(text) {
@@ -243,6 +247,13 @@
     return true;
   }
 
+  function buildPageUrl(current, page) {
+    const url = new URL(current.href);
+    const pageParam = [...url.searchParams.keys()].find(key => PAGE_PARAM.test(key)) || 'p';
+    url.searchParams.set(pageParam, String(page));
+    return url.href;
+  }
+
   function getPageTargets() {
     const current = new URL(location.href);
     const currentPage = pageNumberFromUrl(current) || pageNumberFromTitle(document.title);
@@ -260,15 +271,23 @@
       } catch (_) {}
     }
 
+    const pageCount = pageCountFromTitle(document.title);
+    if (pageCount) {
+      for (let page = 1; page <= pageCount; page += 1) {
+        if (!targets.has(page)) targets.set(page, buildPageUrl(current, page));
+      }
+    }
+
     return {
       currentPage,
-      pageCount: pageCountFromTitle(document.title),
+      pageCount,
       targets,
     };
   }
 
   function totalProductCount() {
-    const text = cleanText(document.querySelector('h1')?.innerText || document.body.innerText.slice(0, 5000));
+    const countLabel = document.querySelector('[data-role="items-count"]')?.innerText;
+    const text = cleanText(countLabel || document.body.innerText.slice(0, 5000));
     const match = text.match(/(\d[\d\s]*)\s+товар(?:а|ов)?\b/i);
     return match ? Number(match[1].replace(/\s+/g, '')) : null;
   }
@@ -337,11 +356,15 @@
       .slice(0, 60) || 'catalog';
   }
 
-  function setStatus(message, isError = false) {
-    const status = document.querySelector('#' + ROOT_ID + ' [data-status]');
-    if (!status) return;
-    status.textContent = message;
-    status.dataset.error = isError ? 'true' : 'false';
+  function showToast(message, isError = false) {
+    const toast = document.querySelector('#' + ROOT_ID + ' [data-toast]');
+    if (!toast) return;
+    window.clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.dataset.error = isError ? 'true' : 'false';
+    toast.hidden = false;
+    toast.setAttribute('role', isError ? 'alert' : 'status');
+    toastTimer = window.setTimeout(() => { toast.hidden = true; }, isError ? 7000 : 3500);
   }
 
   async function copyMarkdown(markdown) {
@@ -377,13 +400,6 @@
 
   async function collectAllPages() {
     const pageInfo = getPageTargets();
-    if (pageInfo.pageCount && pageInfo.targets.size < pageInfo.pageCount) {
-      throw new Error(
-        'DNS сообщает ' + pageInfo.pageCount +
-        ' страниц, но ссылки на все страницы не найдены. Экспорт остановлен, чтобы не выдать неполный список.',
-      );
-    }
-
     const pages = [...pageInfo.targets.entries()].sort((a, b) => a[0] - b[0]);
     const productsByUrl = new Map();
 
@@ -392,7 +408,6 @@
       if (page === pageInfo.currentPage) {
         pageProducts = collectProducts(document, location.href);
       } else {
-        setStatus('Читаю страницу ' + page + ' из ' + pages.length + '…');
         await delay(450);
 
         const response = await fetch(url, { credentials: 'include' });
@@ -402,6 +417,10 @@
 
         const html = await response.text();
         const pageDocument = new DOMParser().parseFromString(html, 'text/html');
+        const actualPage = pageNumberFromTitle(pageDocument.title);
+        if (pageInfo.pageCount && actualPage !== page) {
+          throw new Error('DNS вернул страницу ' + actualPage + ' вместо страницы ' + page + '.');
+        }
         pageProducts = collectProducts(pageDocument, url);
       }
 
@@ -412,6 +431,14 @@
       for (const product of pageProducts) {
         if (!productsByUrl.has(product.url)) productsByUrl.set(product.url, product);
       }
+    }
+
+    const expectedCount = totalProductCount();
+    if (expectedCount !== null && productsByUrl.size !== expectedCount) {
+      throw new Error(
+        'На странице указано ' + expectedCount + ' товаров, собрано ' +
+        productsByUrl.size + '. Экспорт отменён.',
+      );
     }
 
     return {
@@ -425,9 +452,11 @@
     busy = true;
     const buttons = document.querySelectorAll('#' + ROOT_ID + ' [data-action]');
     buttons.forEach(button => { button.disabled = true; });
+    const panel = document.querySelector('#' + ROOT_ID + ' [data-panel]');
+    if (panel) panel.setAttribute('aria-busy', 'true');
 
     try {
-      setStatus('Собираю товары…');
+      showToast('Собираю товары…');
       const result = await collectAllPages();
       if (!result.products.length) {
         throw new Error('Не нашёл карточки товаров. Возможно, DNS изменил разметку страницы.');
@@ -436,22 +465,43 @@
       const markdown = buildMarkdown(result.products, result.pageCount);
       if (action === 'copy') {
         await copyMarkdown(markdown);
-        setStatus('Готово: ' + result.products.length + ' товаров скопировано в Markdown.');
+        showToast('Скопировано: ' + result.products.length + ' товаров.');
       } else {
         downloadMarkdown(markdown);
-        setStatus('Готово: ' + result.products.length + ' товаров сохранено в Markdown.');
+        showToast('Скачано: ' + result.products.length + ' товаров.');
       }
+      if (panel) panel.hidden = true;
+      document.querySelector('#' + ROOT_ID + ' .dns-export-trigger')?.setAttribute('aria-expanded', 'false');
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error), true);
+      showToast(error instanceof Error ? error.message : String(error), true);
+      if (panel) panel.hidden = true;
+      document.querySelector('#' + ROOT_ID + ' .dns-export-trigger')?.setAttribute('aria-expanded', 'false');
     } finally {
       busy = false;
       buttons.forEach(button => { button.disabled = false; });
+      if (panel) panel.removeAttribute('aria-busy');
     }
+  }
+
+  function syncTriggerStyle() {
+    const trigger = document.querySelector('#' + ROOT_ID + ' .dns-export-trigger');
+    const scrollTop = document.querySelector('.scroll-top');
+    if (!trigger || !scrollTop) return;
+
+    const style = getComputedStyle(scrollTop);
+    trigger.style.width = style.width;
+    trigger.style.height = style.height;
+    trigger.style.border = style.border;
+    trigger.style.borderRadius = style.borderRadius;
+    trigger.style.background = style.background;
+    trigger.style.boxShadow = style.boxShadow;
   }
 
   function updatePosition() {
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
+
+    syncTriggerStyle();
 
     let bottom = 92;
     let right = 20;
@@ -473,18 +523,18 @@
     const css = [
       '#dns-ai-export-root{position:fixed;right:var(--dns-export-right,20px);bottom:var(--dns-export-bottom,92px);z-index:2147483000;font:14px/1.4 Arial,sans-serif;color:#222}',
       '#dns-ai-export-root *{box-sizing:border-box}',
-      '#dns-ai-export-root .dns-export-trigger{width:52px;height:52px;border:0;border-radius:50%;background:#f58220;color:#fff;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.24)}',
-      '#dns-ai-export-root .dns-export-trigger:hover{background:#e66f10}',
+      '#dns-ai-export-root .dns-export-trigger{display:grid;place-items:center;width:60px;height:60px;padding:0;border:0;border-radius:12px;background:#fff;color:#AFAFAF;font:inherit;cursor:pointer;box-shadow:0 0 10px rgba(0,0,0,.25)}',
+      '#dns-ai-export-root .dns-export-trigger:hover{filter:brightness(.97)}',
+      '#dns-ai-export-root .dns-export-trigger svg{display:block;width:24px;height:24px}',
       '#dns-ai-export-root .dns-export-panel{position:absolute;right:0;bottom:60px;width:min(340px,calc(100vw - 28px));padding:16px;border:1px solid #e5e5e5;border-radius:10px;background:#fff;box-shadow:0 10px 32px rgba(0,0,0,.22)}',
       '#dns-ai-export-root .dns-export-panel[hidden]{display:none!important}',
-      '#dns-ai-export-root h2{margin:0 0 7px;font-size:16px;line-height:1.3}',
-      '#dns-ai-export-root p{margin:0 0 12px;color:#666;font-size:12px}',
       '#dns-ai-export-root .dns-export-actions{display:grid;gap:8px}',
       '#dns-ai-export-root [data-action]{min-height:38px;border:0;border-radius:6px;padding:8px 12px;background:#f58220;color:#fff;font:700 13px Arial,sans-serif;cursor:pointer}',
       '#dns-ai-export-root [data-action="download"]{background:#f1f1f1;color:#222}',
       '#dns-ai-export-root [data-action]:disabled{opacity:.55;cursor:wait}',
-      '#dns-ai-export-root [data-status]{min-height:18px;margin:12px 0 0;color:#555;font-size:12px}',
-      '#dns-ai-export-root [data-status][data-error="true"]{color:#b3261e}',
+      '#dns-ai-export-root .dns-export-toast{position:absolute;right:68px;bottom:4px;width:max-content;max-width:min(360px,calc(100vw - 96px));padding:10px 14px;border-radius:8px;background:#333;color:#fff;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.2);pointer-events:none}',
+      '#dns-ai-export-root .dns-export-toast[hidden]{display:none!important}',
+      '#dns-ai-export-root .dns-export-toast[data-error="true"]{background:#b3261e}',
       '@media(max-width:520px){#dns-ai-export-root{right:max(12px,var(--dns-export-right,12px))}#dns-ai-export-root .dns-export-panel{width:calc(100vw - 24px)}}',
     ].join('');
 
@@ -505,15 +555,15 @@
     root.id = ROOT_ID;
     root.innerHTML = [
       '<section class="dns-export-panel" data-panel hidden aria-label="Экспорт каталога DNS">',
-      '<h2>Каталог DNS → Markdown</h2>',
-      '<p>Выгрузка всей выдачи с учётом текущего поиска и фильтров.</p>',
       '<div class="dns-export-actions">',
       '<button type="button" data-action="copy">Скопировать для ИИ</button>',
       '<button type="button" data-action="download">Скачать .md</button>',
       '</div>',
-      '<div data-status aria-live="polite">Готово.</div>',
       '</section>',
-      '<button class="dns-export-trigger" type="button" aria-label="Экспортировать товары из DNS" aria-expanded="false" title="Экспорт товаров">ИИ</button>',
+      '<div class="dns-export-toast" data-toast hidden role="status" aria-live="polite"></div>',
+      '<button class="dns-export-trigger" type="button" aria-label="Экспортировать товары из DNS" aria-expanded="false">',
+      '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15V3m0 0 4 4m-4-4L8 7M5 13v6h14v-6" stroke="#AFAFAF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      '</button>',
     ].join('');
     document.body.appendChild(root);
 
