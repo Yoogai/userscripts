@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Почта Адыгеи — ПК-редизайн
 // @namespace    local.mail.adygheya.gov.ru
-// @version      3.1.54
+// @version      3.1.55
 // @description  Трёхпанельный ПК-интерфейс для RainLoop: новый дизайн, SVG-иконки, регулируемые панели, режим чтения.
 // @updateURL    https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/mail-adygheya-redesign.user.js
@@ -21,7 +21,7 @@
     return;
   }
 
-  console.log('[Почта Адыгеи Redesign v3.1.54] Скрипт инициализирован');
+  console.log('[Почта Адыгеи Redesign v3.1.55] Скрипт инициализирован');
 
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
@@ -169,6 +169,14 @@
       ,mailOpen: '<path d="M3 10V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3"/><path d="m3 10 9 6 9-6"/><path d="M3 10v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>'
       ,flag: '<path d="M5 22V4"/><path d="M5 4c5-3 9 3 14 0v10c-5 3-9-3-14 0"/>'
       ,forward: '<path d="m15 17 5-5-5-5"/><path d="M20 12H4"/>'
+      ,reply: '<path d="m9 17-5-5 5-5"/><path d="M4 12h10a6 6 0 0 1 6 6v1"/>'
+      ,replyAll: '<path d="m11 17-5-5 5-5"/><path d="M6 12h9a5 5 0 0 1 5 5v2"/><path d="m6 7-5 5 5 5"/>'
+      ,edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
+      ,forwardAttachment: '<rect x="3" y="3" width="11" height="18" rx="2"/><path d="M7 8h3"/><path d="M7 12h3"/><path d="m17 10 4 4-4 4"/><path d="M21 14h-5"/>'
+      ,print: '<path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/><path d="M18 12h.01"/>'
+      ,externalWindow: '<rect x="3" y="9" width="12" height="12" rx="2"/><path d="M13 3h8v8"/><path d="m21 3-10 10"/>'
+      ,sourceCode: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m10 13-2 2 2 2"/><path d="m14 13 2 2-2 2"/>'
+      ,download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>'
       ,folderMove: '<path d="M3 6h6l2 2h10v11H3Z"/><path d="M13 13h6"/><path d="m16 10 3 3-3 3"/>'
       ,fire: '<path d="M12 3c2 3 5 4 5 9a5 5 0 0 1-10 0c0-2 1-4 3-6 0 3 2 3 2 5 1-2 1-4 0-8Z"/>'
     };
@@ -1370,6 +1378,38 @@
         content: none !important;
       }
       html.ady-redesign #rl-sub-left .btn-group.dropdown ul .ady-menu-icon .ady-inline-icon {
+        display: block !important;
+        width: 18px !important;
+        height: 18px !important;
+      }
+      /* Open message: its action menu is separate from the message-list menu. */
+      html.ady-redesign ul[aria-labelledby="more-view-dropdown-id"] .e-link.menuitem {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        min-height: 36px !important;
+        padding: 7px 12px !important;
+        box-sizing: border-box !important;
+      }
+      html.ady-redesign ul[aria-labelledby="more-view-dropdown-id"] .ady-menu-icon {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 20px !important;
+        width: 20px !important;
+        height: 20px !important;
+        margin: 0 !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        background: transparent !important;
+        background-image: none !important;
+      }
+      html.ady-redesign ul[aria-labelledby="more-view-dropdown-id"] .ady-menu-icon::before,
+      html.ady-redesign ul[aria-labelledby="more-view-dropdown-id"] .ady-menu-icon::after {
+        display: none !important;
+        content: none !important;
+      }
+      html.ady-redesign ul[aria-labelledby="more-view-dropdown-id"] .ady-menu-icon .ady-inline-icon {
         display: block !important;
         width: 18px !important;
         height: 18px !important;
@@ -4063,6 +4103,42 @@
       icon.style.setProperty('background', 'transparent', 'important');
       icon.style.setProperty('background-image', 'none', 'important');
     });
+    // Message-view actions live in a separate dropdown, outside #rl-sub-left.
+    // Identify actions by RainLoop's stable i18n keys, not their translated labels.
+    const messageMenuIcons = {
+      'MESSAGE/BUTTON_REPLY': 'reply',
+      'MESSAGE/BUTTON_REPLY_ALL': 'replyAll',
+      'MESSAGE/BUTTON_FORWARD': 'forward',
+      'MESSAGE/BUTTON_EDIT_AS_NEW': 'edit',
+      'MESSAGE/BUTTON_FORWARD_AS_ATTACHMENT': 'forwardAttachment',
+      'MESSAGE/BUTTON_ARCHIVE': 'archive',
+      'MESSAGE/BUTTON_SPAM': 'spam',
+      'MESSAGE/BUTTON_NOT_SPAM': 'check',
+      'MESSAGE/BUTTON_DELETE': 'trash',
+      'MESSAGE/MENU_PRINT': 'print',
+      'MESSAGE/BUTTON_IN_NEW_WINDOW': 'externalWindow',
+      'MESSAGE/MENU_VIEW_ORIGINAL': 'sourceCode',
+      'MESSAGE/MENU_DOWNLOAD_ORIGINAL': 'download',
+    };
+    document.querySelectorAll('ul[aria-labelledby="more-view-dropdown-id"] li.e-item a.e-link.menuitem').forEach((anchor) => {
+      const key = anchor.querySelector('.i18n[data-i18n]')?.getAttribute('data-i18n');
+      const iconName = messageMenuIcons[key];
+      if (!iconName) return;
+
+      const icon = anchor.querySelector('i');
+      if (!icon) return;
+      if (icon.dataset.adyActionIcon === iconName && icon.querySelector('svg.ady-inline-icon')) return;
+
+      icon.className = 'ady-menu-icon ady-icon-replaced';
+      icon.dataset.adyActionIcon = iconName;
+      icon.innerHTML = getActionIcon(iconName);
+
+      // RainLoop's template inserts NBSP separators; flex gap replaces them.
+      anchor.childNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) node.remove();
+      });
+    });
+
     document.querySelectorAll('#rl-sub-left .btn-group.dropdown ul li.e-item').forEach((item) => {
       const anchor = item.querySelector('a.e-link, a');
       if (!anchor) return;
