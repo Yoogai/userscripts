@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MAX — сохранить чат в Markdown
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      0.1.0
+// @version      0.2.0
 // @description  Сохраняет открытый чат MAX в Markdown-файл
 // @homepageURL  https://github.com/Yoogai/userscripts
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/max-chat-to-markdown.user.js
@@ -16,6 +16,10 @@
 
   const BUTTON_ID = 'tm-max-chat-export-md';
   const TOAST_ID = 'tm-max-chat-export-toast';
+  const BUTTON_CLASS = 'button button--small button--ghost svelte-yr2ksf';
+  const DEFAULT_BUTTON_LABEL = 'Сохранить чат в Markdown';
+  const BUTTON_SHAPE_PATH = 'M26 0C30.8966 0 35.6698 0.794071 40.0291 3.12545C43.8424 5.16485 46.8352 8.15757 48.8746 11.9709C51.2059 16.3302 52 21.1034 52 26C52 31.4424 50.9139 36.2158 48.8746 40.0291C46.8352 43.8424 43.8424 46.8352 40.0291 48.8745C35.6698 51.2059 30.8966 52 26 52C20.5576 52 15.7842 50.9139 11.9709 48.8745C8.15757 46.8352 5.16485 43.8424 3.12545 40.0291C0.786468 35.6556 0.0294538 30.9057 0 26C0 20.5576 1.08606 15.7842 3.12545 11.9709C5.16485 8.15757 8.15757 5.16485 11.9709 3.12545C15.7842 1.08606 20.5576 0 26 0Z';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
   const MAX_LOAD_PASSES = 120;
   const LOAD_WAIT_MS = 650;
 
@@ -35,6 +39,40 @@
 
   function flatText(value) {
     return cleanText(value).replace(/\s+/g, ' ').trim();
+  }
+
+  function setButtonLabel(button, label) {
+    button.setAttribute('aria-label', label);
+    button.title = label;
+  }
+
+  function addNativeButtonIcon(button) {
+    const shape = document.createElementNS(SVG_NS, 'svg');
+    shape.setAttribute('class', 'shape svelte-yr2ksf');
+    shape.setAttribute('viewBox', '0 0 52 52');
+    shape.setAttribute('fill', 'none');
+    shape.setAttribute('width', '40');
+    shape.setAttribute('height', '40');
+
+    const shapePath = document.createElementNS(SVG_NS, 'path');
+    shapePath.setAttribute('fill', 'var(--button-background-color)');
+    shapePath.setAttribute('d', BUTTON_SHAPE_PATH);
+    shape.appendChild(shapePath);
+
+    const content = document.createElement('div');
+    content.className = 'content svelte-yr2ksf';
+
+    const icon = document.createElementNS(SVG_NS, 'svg');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.setAttribute('width', '24');
+    icon.setAttribute('height', '24');
+
+    const use = document.createElementNS(SVG_NS, 'use');
+    use.setAttribute('href', '#icon_download');
+    icon.appendChild(use);
+    content.appendChild(icon);
+
+    button.append(shape, content);
   }
 
   function currentContext() {
@@ -94,7 +132,8 @@
     const context = currentContext();
     if (!context) return;
 
-    const host = context.header.parentElement;
+    const searchButton = context.main.querySelector('button[aria-label="Открыть поиск сообщений"]');
+    const host = searchButton?.parentElement || context.header.parentElement;
     if (!host) return;
 
     if (pendingDownload
@@ -105,27 +144,28 @@
 
     const oldButton = document.getElementById(BUTTON_ID);
     if (oldButton) {
-      if (oldButton.parentElement === host) return;
+      if (oldButton.parentElement === host) {
+        if (!busy) {
+          setButtonLabel(
+            oldButton,
+            pendingDownload ? 'Скачать готовый Markdown-файл' : DEFAULT_BUTTON_LABEL,
+          );
+        }
+        return;
+      }
       oldButton.remove();
     }
 
     const button = document.createElement('button');
     button.id = BUTTON_ID;
+    button.className = BUTTON_CLASS;
     button.type = 'button';
-    button.textContent = 'Скачать MD';
-    button.title = 'Сохранить открытый чат в Markdown';
-    button.setAttribute('aria-label', 'Сохранить открытый чат в Markdown');
-    button.style.cssText = [
-      'flex:0 0 auto',
-      'margin-inline-start:10px',
-      'padding:8px 12px',
-      'border:1px solid #d6d9df',
-      'border-radius:9px',
-      'background:#fff',
-      'color:#202124',
-      'font:500 13px/1.2 system-ui,sans-serif',
-      'cursor:pointer',
-    ].join(';');
+    button.setAttribute('data-testid', 'max:exportMarkdownBtn');
+    setButtonLabel(
+      button,
+      pendingDownload ? 'Скачать готовый Markdown-файл' : DEFAULT_BUTTON_LABEL,
+    );
+    addNativeButtonIcon(button);
 
     button.addEventListener('click', event => {
       event.preventDefault();
@@ -145,7 +185,11 @@
       }
     });
 
-    host.insertBefore(button, context.header.nextElementSibling);
+    if (searchButton) {
+      searchButton.insertAdjacentElement('afterend', button);
+    } else {
+      host.insertBefore(button, context.header.nextElementSibling);
+    }
   }
 
   function scheduleButtonInstall() {
@@ -366,7 +410,7 @@
       const atTop = scroller.scrollTop <= 2;
       order = mergeSnapshot(order, messages, snapshot, atTop);
 
-      button.textContent = 'Загружено ' + messages.size;
+      setButtonLabel(button, 'Загружено сообщений: ' + messages.size);
       const madeProgress = messages.size > beforeCount || scroller.scrollHeight > beforeHeight + 2;
       if (atTop && !madeProgress) {
         stableTopPasses += 1;
@@ -459,7 +503,7 @@
     anchor.remove();
     const url = pendingDownload.url;
     pendingDownload = null;
-    button.textContent = 'Скачать MD';
+    setButtonLabel(button, DEFAULT_BUTTON_LABEL);
     showToast('Markdown-файл скачивается.', false);
     window.setTimeout(() => URL.revokeObjectURL(url), 1500);
   }
@@ -472,10 +516,10 @@
     }
 
     busy = true;
-    const previousLabel = button.textContent;
+    const previousLabel = button.getAttribute('aria-label') || DEFAULT_BUTTON_LABEL;
     let readyToDownload = false;
     button.disabled = true;
-    button.textContent = 'Собираю…';
+    setButtonLabel(button, 'Собираю переписку…');
     button.style.opacity = '0.65';
     button.style.cursor = 'wait';
 
@@ -495,21 +539,21 @@
           + '. Нажми «Скачать файл».',
         !result.reachedTop,
       );
-      button.textContent = 'Скачать файл';
+      setButtonLabel(button, 'Скачать готовый Markdown-файл');
     } catch (error) {
       showToast(error?.message || 'Не удалось сохранить чат.', true);
-      button.textContent = 'Ошибка';
+      setButtonLabel(button, 'Не удалось сохранить чат');
     } finally {
       busy = false;
       button.disabled = false;
       button.style.opacity = '';
       button.style.cursor = 'pointer';
       if (readyToDownload) {
-        button.textContent = 'Скачать файл';
+        setButtonLabel(button, 'Скачать готовый Markdown-файл');
       } else {
-        button.textContent = 'Ошибка';
+        setButtonLabel(button, 'Не удалось сохранить чат');
         window.setTimeout(() => {
-          button.textContent = previousLabel;
+          setButtonLabel(button, previousLabel);
         }, 1800);
       }
     }
