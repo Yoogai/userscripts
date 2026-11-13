@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MAX — сохранить чат в Markdown
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      0.2.0
+// @version      0.3.0
 // @description  Сохраняет открытый чат MAX в Markdown-файл
 // @homepageURL  https://github.com/Yoogai/userscripts
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/max-chat-to-markdown.user.js
@@ -145,6 +145,8 @@
     const oldButton = document.getElementById(BUTTON_ID);
     if (oldButton) {
       if (oldButton.parentElement === host) {
+        const existingUse = oldButton.querySelector('.content use, use');
+        if (existingUse) existingUse.setAttribute('href', '#icon_download');
         if (!busy) {
           setButtonLabel(
             oldButton,
@@ -156,18 +158,40 @@
       oldButton.remove();
     }
 
-    const button = document.createElement('button');
+    const button = searchButton
+      ? searchButton.cloneNode(true)
+      : document.createElement('button');
     button.id = BUTTON_ID;
-    button.className = BUTTON_CLASS;
     button.type = 'button';
+    if (!searchButton) {
+      button.className = BUTTON_CLASS;
+      addNativeButtonIcon(button);
+    } else {
+      button.removeAttribute('data-testid');
+      const iconUse = button.querySelector('.content use, use');
+      if (iconUse) {
+        iconUse.setAttribute('href', '#icon_download');
+      } else {
+        button.replaceChildren();
+        addNativeButtonIcon(button);
+      }
+    }
     button.setAttribute('data-testid', 'max:exportMarkdownBtn');
     setButtonLabel(
       button,
       pendingDownload ? 'Скачать готовый Markdown-файл' : DEFAULT_BUTTON_LABEL,
     );
-    addNativeButtonIcon(button);
 
+    let pointerActivation = false;
+    button.addEventListener('pointerdown', () => {
+      pointerActivation = true;
+    });
+    button.addEventListener('keydown', () => {
+      pointerActivation = false;
+    });
     button.addEventListener('click', event => {
+      const shouldBlur = pointerActivation;
+      pointerActivation = false;
       event.preventDefault();
       event.stopPropagation();
       if (busy) return;
@@ -183,6 +207,7 @@
         }
         exportActiveChat(button);
       }
+      if (shouldBlur) button.blur();
     });
 
     if (searchButton) {
