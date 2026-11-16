@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNS → Markdown Catalog Exporter
 // @namespace    https://github.com/Yoogai/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Выгружает товары из каталога DNS в структурированный Markdown для ИИ.
 // @homepageURL  https://github.com/Yoogai/userscripts
 // @downloadURL  https://raw.githubusercontent.com/Yoogai/userscripts/main/dns-shop-catalog-to-markdown.user.js
@@ -209,7 +209,7 @@
       const url = canonicalProductUrl(anchor, baseUrl);
       if (!url) continue;
       const current = grouped.get(url);
-      if (!current || anchorScore(anchor) > anchorScore(current)) {
+      if (!current || anchorScore(anchor) > anchorScore(current.anchor)) {
         grouped.set(url, { anchor, card });
       }
     }
